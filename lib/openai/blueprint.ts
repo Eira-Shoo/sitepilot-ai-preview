@@ -1,0 +1,101 @@
+import OpenAI from "openai";
+import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import {
+  buildBlueprintSystemPrompt,
+  buildBlueprintUserPayload,
+  buildEditBlueprintPrompt,
+  buildRecommendationsPrompt,
+} from "@/lib/ai/prompts";
+import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
+
+function getClient() {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("Missing OPENAI_API_KEY");
+  return new OpenAI({ apiKey: key });
+}
+
+export async function generateBlueprintFromOnboarding(
+  onboarding: unknown,
+): Promise<WebsiteBlueprint> {
+  const openai = getClient();
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: buildBlueprintSystemPrompt() },
+      { role: "user", content: buildBlueprintUserPayload(onboarding) },
+    ],
+  });
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) throw new Error("Empty AI response");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("AI returned non-JSON");
+  }
+  return parseWebsiteBlueprint(parsed);
+}
+
+export async function editBlueprintWithInstruction(
+  blueprint: WebsiteBlueprint,
+  instruction: string,
+): Promise<WebsiteBlueprint> {
+  const openai = getClient();
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.5,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "You return JSON only — a complete SitePilot website blueprint object.",
+      },
+      {
+        role: "user",
+        content: `${buildEditBlueprintPrompt(instruction)}\n\nCurrent blueprint JSON:\n${JSON.stringify(blueprint)}`,
+      },
+    ],
+  });
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) throw new Error("Empty AI response");
+  const parsed = JSON.parse(raw);
+  return parseWebsiteBlueprint(parsed);
+}
+
+export async function recommendImprovements(
+  blueprint: WebsiteBlueprint,
+  metricsSummary: string,
+): Promise<
+  { recommendation_type: string; title: string; description: string; priority: string }[]
+> {
+  const openai = getClient();
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.4,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: "You return JSON only matching the requested recommendations schema.",
+      },
+      {
+        role: "user",
+        content: buildRecommendationsPrompt({ blueprint, metricsSummary }),
+      },
+    ],
+  });
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) throw new Error("Empty AI response");
+  const parsed = JSON.parse(raw) as {
+    recommendations: {
+      recommendation_type: string;
+      title: string;
+      description: string;
+      priority: string;
+    }[];
+  };
+  return parsed.recommendations ?? [];
+}

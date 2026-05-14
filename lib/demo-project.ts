@@ -1,0 +1,2 @@
+/** Stable UUID for offline / Vercel preview without Supabase (matches no DB row). */
+export const DEMO_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
