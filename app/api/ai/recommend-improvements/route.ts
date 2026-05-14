@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { recommendImprovements } from "@/lib/openai/blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
-import { isOfflinePreview } from "@/lib/runtime";
-import { DEMO_PROJECT_ID } from "@/lib/demo-project";
+import { isDemoDeploy } from "@/lib/runtime";
 
 const bodySchema = z.object({
   projectId: z.string().uuid(),
@@ -42,22 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  if (isOfflinePreview() && parsed.data.projectId === DEMO_PROJECT_ID) {
-    const blueprintParsed = websiteBlueprintSchema.safeParse(parsed.data.blueprint);
-    if (!blueprintParsed.success) {
-      return NextResponse.json({ error: "Invalid blueprint" }, { status: 400 });
-    }
-    try {
-      if (process.env.OPENAI_API_KEY) {
-        const recs = await recommendImprovements(
-          blueprintParsed.data,
-          parsed.data.metricsSummary ?? "Preview deploy — no analytics yet.",
-        );
-        return NextResponse.json({ recommendations: recs });
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  if (isDemoDeploy()) {
     return NextResponse.json({ recommendations: canned });
   }
 

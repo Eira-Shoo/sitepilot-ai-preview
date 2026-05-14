@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateBlueprintFromOnboarding } from "@/lib/openai/blueprint";
 import { onboardingSchema } from "@/lib/validators/onboarding";
 import { rateLimit } from "@/lib/rate-limit";
-import { isOfflinePreview } from "@/lib/runtime";
+import { isDemoDeploy } from "@/lib/runtime";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { demoBlueprint } from "@/lib/demo-blueprint";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
@@ -27,16 +27,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = supabase ? await supabase.auth.getUser() : { data: { user: null } };
-
-  if (isOfflinePreview()) {
+  if (isDemoDeploy()) {
     const blueprint = parseWebsiteBlueprint(demoBlueprint);
     return NextResponse.json({ blueprint, projectId: DEMO_PROJECT_ID });
   }
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

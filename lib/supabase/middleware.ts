@@ -1,9 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { hasSupabaseCredentials } from "@/lib/runtime";
+import { hasSupabaseCredentials, isPublicDemoMode } from "@/lib/runtime";
 
 export async function updateSession(request: NextRequest) {
-  if (!hasSupabaseCredentials()) {
+  /* Demo / offline: no auth redirects, no Supabase session refresh required */
+  if (!hasSupabaseCredentials() || isPublicDemoMode()) {
     return NextResponse.next({ request });
   }
 

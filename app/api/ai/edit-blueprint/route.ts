@@ -4,8 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { editBlueprintWithInstruction } from "@/lib/openai/blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
 import { rateLimit } from "@/lib/rate-limit";
-import { isOfflinePreview } from "@/lib/runtime";
-import { DEMO_PROJECT_ID } from "@/lib/demo-project";
+import { isDemoDeploy } from "@/lib/runtime";
 
 const bodySchema = z.object({
   projectId: z.string().uuid(),
@@ -31,18 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid blueprint" }, { status: 400 });
   }
 
-  if (isOfflinePreview() && parsed.data.projectId === DEMO_PROJECT_ID) {
-    try {
-      if (process.env.OPENAI_API_KEY) {
-        const updated = await editBlueprintWithInstruction(
-          current.data,
-          parsed.data.instruction,
-        );
-        return NextResponse.json({ blueprint: updated });
-      }
-    } catch (e) {
-      console.error(e);
-    }
+  if (isDemoDeploy()) {
     return NextResponse.json({ blueprint: current.data });
   }
 

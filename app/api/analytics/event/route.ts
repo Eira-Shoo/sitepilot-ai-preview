@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
-import { hasServiceRoleKey } from "@/lib/runtime";
+import { hasServiceRoleKey, isDemoDeploy } from "@/lib/runtime";
 
 const bodySchema = z.object({
   projectId: z.string().uuid(),
@@ -22,6 +22,10 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  if (isDemoDeploy()) {
+    return NextResponse.json({ ok: true, demo: true });
   }
 
   if (!hasServiceRoleKey()) {

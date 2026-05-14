@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { hasSupabaseCredentials } from "@/lib/runtime";
+import { hasSupabaseCredentials, isPublicDemoMode } from "@/lib/runtime";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 
 export const metadata = { title: "Dashboard" };
@@ -56,6 +56,9 @@ export default async function DashboardPage() {
     .select("id, name, business_name, status, updated_at, published_slug")
     .order("updated_at", { ascending: false });
 
+  const showSampleProject =
+    isPublicDemoMode() && (!projects || projects.length === 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -90,7 +93,32 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
-        {!projects?.length ? (
+        {showSampleProject ? (
+          <Card className="rounded-2xl border-border/60 bg-card/80 md:col-span-2">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div>
+                <CardTitle>Northline Beauty Studio (Demo)</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Beispiel-Blueprint — keine echten API-Aufrufe bei NEXT_PUBLIC_DEMO_MODE=1
+                </p>
+              </div>
+              <Badge variant="muted" className="rounded-full">
+                demo
+              </Badge>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button asChild size="sm" className="rounded-xl">
+                <Link href={`/dashboard/projects/${DEMO_PROJECT_ID}`}>Open</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="rounded-xl">
+                <Link href="/site/demo" target="_blank">
+                  Public /site/demo
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+        {!projects?.length && !showSampleProject ? (
           <Card className="rounded-2xl border-dashed border-border/60 bg-card/40 md:col-span-2">
             <CardContent className="p-8 text-sm text-muted-foreground">
               No projects yet.{" "}

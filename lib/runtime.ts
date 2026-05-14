@@ -1,8 +1,10 @@
 /**
- * Public deploy / local preview without Supabase or paid APIs.
- * Set NEXT_PUBLIC_DEMO_MODE=1 on Vercel for the review deployment to show the Demo Mode ribbon
- * in builder + dashboard + admin areas only.
+ * Deployment / preview helpers (no secrets here).
+ *
+ * - `NEXT_PUBLIC_DEMO_MODE=1` — public Vercel review: mock APIs, no login, no external calls.
+ * - Missing Supabase URL+anon — same behaviour as demo deploy (offline preview).
  */
+
 export function hasSupabaseCredentials(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,17 +17,20 @@ export function hasServiceRoleKey(): boolean {
   );
 }
 
-export function isDemoModeFlag(): boolean {
+/** Explicit Vercel / preview flag (safe to expose: not a secret). */
+export function isPublicDemoMode(): boolean {
   const v = process.env.NEXT_PUBLIC_DEMO_MODE;
   return v === "1" || v === "true";
 }
 
-/** APIs that need DB should use mock paths when Supabase is not configured. */
+/** No Supabase browser credentials configured. */
 export function isOfflinePreview(): boolean {
   return !hasSupabaseCredentials();
 }
 
-/** Show the visible Demo Mode ribbon (builder / dashboard / admin only — see component). */
-export function showDemoRibbon(): boolean {
-  return isDemoModeFlag() || isOfflinePreview();
+/**
+ * Mock APIs, skip auth in middleware, avoid OpenAI/Stripe/Google/DB side effects.
+ */
+export function isDemoDeploy(): boolean {
+  return isPublicDemoMode() || isOfflinePreview();
 }

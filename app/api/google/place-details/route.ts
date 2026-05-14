@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { placeDetails } from "@/lib/google/places";
 import { rateLimit } from "@/lib/rate-limit";
+import { isDemoDeploy } from "@/lib/runtime";
 
 const bodySchema = z.object({ placeId: z.string().min(4).max(256) });
 
@@ -15,6 +16,15 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid place id" }, { status: 400 });
+  }
+  if (isDemoDeploy()) {
+    return NextResponse.json({
+      result: {
+        name: "Demo Business",
+        formatted_address: "Demo Street 1, Demo City",
+        formatted_phone_number: "+1 555 0100",
+      },
+    });
   }
   const details = await placeDetails(parsed.data.placeId);
   if (!details) {

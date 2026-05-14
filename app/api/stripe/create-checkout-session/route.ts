@@ -7,7 +7,7 @@ import {
   packageAmountEUR,
   PACKAGE_LABELS,
 } from "@/lib/stripe/client";
-import { isOfflinePreview } from "@/lib/runtime";
+import { isDemoDeploy } from "@/lib/runtime";
 
 const bodySchema = z.object({
   projectId: z.string().uuid(),
@@ -15,7 +15,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (isOfflinePreview() || !process.env.STRIPE_SECRET_KEY) {
+  if (isDemoDeploy() || !process.env.STRIPE_SECRET_KEY) {
     return NextResponse.json(
       { error: "Checkout is disabled in this preview (add STRIPE_SECRET_KEY and Supabase)." },
       { status: 503 },
