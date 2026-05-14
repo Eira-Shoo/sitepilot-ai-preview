@@ -81,7 +81,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
                   <Link href="/login">Log in</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/signup">Get started</Link>
+                  <Link href="/create">Get started</Link>
                 </Button>
               </>
             )}

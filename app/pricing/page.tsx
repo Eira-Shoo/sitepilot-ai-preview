@@ -48,7 +48,7 @@ export default function PricingPage() {
                 "Google Maps section",
                 "SEO metadata",
                 "Service blocks",
-                "Admin review",
+                "Optional human review",
               ].map((i) => (
                 <li key={i} className="flex gap-2">
                   <Check className="h-4 w-4 text-accent" />
@@ -71,7 +71,7 @@ export default function PricingPage() {
                 "Hosting guidance",
                 "Small edits",
                 "AI optimization suggestions",
-                "Performance review",
+                "Light performance guidance",
               ].map((i) => (
                 <li key={i} className="flex gap-2">
                   <Check className="h-4 w-4 text-accent" />

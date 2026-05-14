@@ -112,7 +112,7 @@ export default async function DashboardPage() {
               <div>
                 <CardTitle>Northline Beauty Studio (Demo)</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Beispiel-Blueprint — keine echten API-Aufrufe bei NEXT_PUBLIC_DEMO_MODE=1
+                  Sample blueprint — no live API calls while NEXT_PUBLIC_DEMO_MODE=1
                 </p>
               </div>
               <Badge variant="muted" className="rounded-full">

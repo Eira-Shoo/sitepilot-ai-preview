@@ -69,8 +69,8 @@ export function ContactSection({
         <div>
           <h2 className="text-3xl font-semibold tracking-tight">{section.headline}</h2>
           <p className="mt-3 text-sm text-muted-foreground">
-            Secure delivery to your project inbox. No AI-generated legal promises —
-            we route this to your team.
+            Secure delivery to your project inbox. No AI-generated legal promises — submissions go to the address you
+            configure for this project.
           </p>
         </div>
         {enabled ? (

@@ -41,11 +41,11 @@ export function LandingContent() {
               SitePilot AI · Eira Web Studio
             </Badge>
             <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              AI websites for small businesses — built in minutes, refined by experts.
+              AI websites for small businesses — built in minutes, with optional human review when you want it.
             </h1>
             <p className="text-pretty text-lg text-muted-foreground">
-              Describe your business, connect your Google listing, choose a style, and get a
-              ready-to-launch website draft with copy, images, SEO and contact forms.
+              Describe your business, connect your Google listing, choose a style, and get a structured website draft
+              with copy prompts, layout sections, SEO fields, and contact blocks you can refine before launch.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="rounded-2xl px-7">
@@ -105,7 +105,7 @@ export function LandingContent() {
         </div>
       </section>
 
-      <Section title="How it works" subtitle="Automation with a human safety net.">
+      <Section title="How it works" subtitle="Smart automation — add human review only when it helps.">
         <div className="grid gap-6 md:grid-cols-3">
           {[
             {
@@ -118,7 +118,7 @@ export function LandingContent() {
             },
             {
               title: "Review, edit and publish",
-              body: "You iterate with the AI editor; our team can review, approve, and publish when you are ready.",
+              body: "You iterate in the AI editor. Optional human review can help with tone and launch readiness when you want a second pair of eyes.",
             },
           ].map((s) => (
             <Card key={s.title} className="rounded-2xl border-border/60 bg-card/70">
@@ -134,7 +134,7 @@ export function LandingContent() {
 
       <Section
         title="Who it is for"
-        subtitle="Local demand, premium presentation — without an agency retainer."
+        subtitle="Local businesses that want a polished site without a long agency process."
       >
         <div className="flex flex-wrap gap-2">
           {[
@@ -154,7 +154,7 @@ export function LandingContent() {
         </div>
       </Section>
 
-      <Section title="Features" subtitle="Everything you need to launch with confidence.">
+      <Section title="Features" subtitle="Building blocks for a clear, mobile-first site — scope depends on your package.">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
             "AI copywriting",
@@ -164,8 +164,8 @@ export function LandingContent() {
             "SEO titles and descriptions",
             "Image generation prompts",
             "Mobile optimized layouts",
-            "Admin review",
-            "Monthly optimization suggestions",
+            "Optional human review",
+            "AI improvement suggestions",
           ].map((f) => (
             <div
               key={f}
@@ -201,7 +201,7 @@ export function LandingContent() {
         </div>
       </Section>
 
-      <Section title="Pricing" subtitle="Clear packages — launch fast, grow later.">
+      <Section title="Pricing" subtitle="Illustrative packages — final checkout flows when billing is enabled.">
         <div className="grid gap-6 lg:grid-cols-3">
           <PricingCard
             name="Starter"
@@ -220,7 +220,7 @@ export function LandingContent() {
               "Google Maps section",
               "SEO metadata",
               "Service blocks",
-              "Admin review",
+              "Optional human review",
             ]}
             href="/create"
           />
@@ -228,7 +228,7 @@ export function LandingContent() {
             name="Growth"
             title="Website + Monthly Care"
             price="49 €/month"
-            items={["Hosting guidance", "Small edits", "AI optimization suggestions", "Performance review"]}
+            items={["Hosting guidance", "Small edits", "AI optimization suggestions", "Light performance guidance"]}
             href="/create"
           />
         </div>
@@ -247,7 +247,7 @@ export function LandingContent() {
             },
             {
               q: "What does human review mean?",
-              a: "Optional expert pass for tone, clarity, and launch readiness — especially on the Business package. Nothing auto-publishes without approval in v1.",
+              a: "An optional pass for tone, clarity, and launch readiness — especially on the Business package. In early versions, publishing stays in your control; timelines depend on availability.",
             },
             {
               q: "How does billing work?",
@@ -267,7 +267,8 @@ export function LandingContent() {
           <Shield className="h-8 w-8 text-primary" />
           <h2 className="text-3xl font-semibold tracking-tight">Ready to launch smarter?</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            AI creates it. We refine it. You ship faster — with structured data, not fragile generated code.
+            AI drafts the structure and copy direction. You refine the details — optional review can help before you ship
+            — with structured data instead of fragile generated code.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Button asChild size="lg" className="rounded-2xl">
