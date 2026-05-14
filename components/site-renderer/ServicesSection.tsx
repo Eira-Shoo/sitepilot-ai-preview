@@ -3,6 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 type Services = Extract<BlueprintSection, { type: "services" }>;
+type ServiceItem = {
+  name: string;
+  description: string;
+  price: string;
+  duration: string;
+  cta: string;
+};
 
 export function ServicesSection({ section }: { section: Services }) {
   return (
@@ -11,7 +18,7 @@ export function ServicesSection({ section }: { section: Services }) {
         <h2 className="text-3xl font-semibold tracking-tight">{section.headline}</h2>
       </div>
       <div className="mt-10 grid gap-6 md:grid-cols-2">
-        {section.items.map((item, i) => (
+        {section.items.map((item: ServiceItem, i: number) => (
           <Card key={i} className="rounded-2xl border-border/60 bg-card/70">
             <CardHeader>
               <CardTitle className="text-xl">{item.name}</CardTitle>

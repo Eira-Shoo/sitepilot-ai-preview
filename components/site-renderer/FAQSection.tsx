@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/accordion";
 
 type F = Extract<BlueprintSection, { type: "faq" }>;
+type FaqItem = { question: string; answer: string };
 
 export function FAQSection({ section }: { section: F }) {
   return (
@@ -15,7 +16,7 @@ export function FAQSection({ section }: { section: F }) {
         {section.headline}
       </h2>
       <Accordion type="single" collapsible className="mt-8 w-full">
-        {section.items.map((item, i) => (
+        {section.items.map((item: FaqItem, i: number) => (
           <AccordionItem key={i} value={`item-${i}`}>
             <AccordionTrigger>{item.question}</AccordionTrigger>
             <AccordionContent>{item.answer}</AccordionContent>

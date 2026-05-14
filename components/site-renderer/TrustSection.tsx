@@ -10,7 +10,7 @@ export function TrustSection({ section }: { section: Trust }) {
         {section.headline}
       </h2>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {section.items.map((item, i) => (
+        {section.items.map((item: string, i: number) => (
           <div
             key={i}
             className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/60 p-4"

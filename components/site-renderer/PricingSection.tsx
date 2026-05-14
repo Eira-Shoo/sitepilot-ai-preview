@@ -3,6 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 type Pricing = Extract<BlueprintSection, { type: "pricing" }>;
+type PricingItem = {
+  name: string;
+  description: string;
+  price: string;
+  duration: string;
+  cta: string;
+};
 
 export function PricingSection({ section }: { section: Pricing }) {
   return (
@@ -12,7 +19,7 @@ export function PricingSection({ section }: { section: Pricing }) {
           {section.headline}
         </h2>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {section.items.map((item, i) => (
+          {section.items.map((item: PricingItem, i: number) => (
             <Card
               key={i}
               className="rounded-2xl border-border/60 bg-card/80 shadow-sm"

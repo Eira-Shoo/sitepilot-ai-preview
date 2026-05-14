@@ -10,7 +10,6 @@ export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const offline = !hasSupabaseCredentials();
-  const supabase = await createClient();
 
   if (offline) {
     return (
@@ -43,6 +42,20 @@ export default async function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const supabase = await createClient();
+  if (!supabase) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">My projects</h1>
+          <p className="text-sm text-muted-foreground">
+            Supabase is configured but the server client could not be created. Check env vars and deployment settings.
+          </p>
         </div>
       </div>
     );

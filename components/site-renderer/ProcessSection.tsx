@@ -1,6 +1,7 @@
 import type { BlueprintSection } from "@/lib/validators/website-blueprint";
 
 type P = Extract<BlueprintSection, { type: "process" }>;
+type ProcessStep = { title: string; description: string };
 
 export function ProcessSection({ section }: { section: P }) {
   return (
@@ -10,7 +11,7 @@ export function ProcessSection({ section }: { section: P }) {
           {section.headline}
         </h2>
         <ol className="mt-10 grid gap-6 md:grid-cols-3">
-          {section.items.map((step, i) => (
+          {section.items.map((step: ProcessStep, i: number) => (
             <li
               key={i}
               className="relative rounded-2xl border border-border/60 bg-card/70 p-6"

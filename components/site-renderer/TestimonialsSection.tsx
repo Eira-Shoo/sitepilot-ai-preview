@@ -2,6 +2,7 @@ import type { BlueprintSection } from "@/lib/validators/website-blueprint";
 import { Card, CardContent } from "@/components/ui/card";
 
 type T = Extract<BlueprintSection, { type: "testimonials" }>;
+type TestimonialItem = { quote: string; name: string; role: string };
 
 export function TestimonialsSection({ section }: { section: T }) {
   return (
@@ -15,7 +16,7 @@ export function TestimonialsSection({ section }: { section: T }) {
           use.
         </p>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
-          {section.items.map((item, i) => (
+          {section.items.map((item: TestimonialItem, i: number) => (
             <Card key={i} className="rounded-2xl border-border/60 bg-card/80">
               <CardContent className="space-y-4 p-6">
                 <p className="text-sm leading-relaxed text-muted-foreground">

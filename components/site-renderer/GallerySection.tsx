@@ -2,6 +2,7 @@ import type { BlueprintSection } from "@/lib/validators/website-blueprint";
 import { Card, CardContent } from "@/components/ui/card";
 
 type G = Extract<BlueprintSection, { type: "gallery" }>;
+type GalleryItem = { imagePrompt: string; caption: string };
 
 export function GallerySection({ section }: { section: G }) {
   return (
@@ -11,7 +12,7 @@ export function GallerySection({ section }: { section: G }) {
           {section.headline}
         </h2>
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
-          {section.items.map((item, i) => (
+          {section.items.map((item: GalleryItem, i: number) => (
             <Card key={i} className="overflow-hidden rounded-2xl border-border/60">
               <div className="aspect-[4/3] bg-gradient-to-br from-primary/20 via-secondary/10 to-accent/20" />
               <CardContent className="p-4">

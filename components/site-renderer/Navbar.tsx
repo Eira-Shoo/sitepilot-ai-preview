@@ -7,6 +7,7 @@ import { Menu } from "lucide-react";
 import { useState } from "react";
 
 type N = Extract<BlueprintSection, { type: "navbar" }>;
+type NavLink = { label: string; href: string };
 
 export function Navbar({ section }: { section: N }) {
   const [open, setOpen] = useState(false);
@@ -17,7 +18,7 @@ export function Navbar({ section }: { section: N }) {
           {section.logoText}
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-          {section.links.map((l) => (
+          {section.links.map((l: NavLink) => (
             <a key={l.href} href={l.href} className="hover:text-foreground">
               {l.label}
             </a>
@@ -38,7 +39,7 @@ export function Navbar({ section }: { section: N }) {
       {open ? (
         <div className="border-t border-border/60 bg-background px-4 py-4 md:hidden">
           <div className="flex flex-col gap-3 text-sm">
-            {section.links.map((l) => (
+            {section.links.map((l: NavLink) => (
               <a key={l.href} href={l.href} onClick={() => setOpen(false)}>
                 {l.label}
               </a>

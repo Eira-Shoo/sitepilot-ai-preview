@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { WebsiteRenderer } from "@/components/site-renderer/WebsiteRenderer";
 import { AnalyticsBeacon } from "@/components/site-renderer/AnalyticsBeacon";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
-import { hasSupabaseCredentials } from "@/lib/runtime";
 
 export async function generateMetadata({
   params,

@@ -2,6 +2,7 @@ import type { BlueprintSection } from "@/lib/validators/website-blueprint";
 import Link from "next/link";
 
 type F = Extract<BlueprintSection, { type: "footer" }>;
+type FooterLink = { label: string; href: string };
 
 export function FooterSection({ section }: { section: F }) {
   return (
@@ -9,7 +10,7 @@ export function FooterSection({ section }: { section: F }) {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-sm text-muted-foreground">{section.tagline}</p>
         <div className="flex flex-wrap gap-4 text-sm">
-          {section.links.map((l) => (
+          {section.links.map((l: FooterLink) => (
             <Link
               key={l.href}
               href={l.href}
