@@ -17,9 +17,7 @@ import {
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import {
   createBlueprintFromOnboarding,
-  OPENAI_GENERATION_FAILED_MESSAGE,
   OpenAiGenerationError,
-  toSafeErrorInfo,
 } from "@/lib/openai/generate-website-blueprint";
 import { applyDevOpenAiKeyFromEnvLocal } from "@/lib/openai/resolve-api-key";
 
@@ -196,21 +194,12 @@ export async function POST(request: Request) {
     const errMessage = e instanceof Error ? e.message : String(e);
     const errStack = e instanceof Error ? e.stack : undefined;
 
-    if (OpenAiGenerationError.isInstance(e)) {
-      const safe = toSafeErrorInfo(e);
-      console.error("[generate-website] OpenAI generation failed", safe);
-      logGenerationContext("OpenAI generation failed", {
-        code: safe.code,
-        message: safe.message,
+    if (e instanceof OpenAiGenerationError) {
+      const { body, status } = generationFailureBody(e.code, e.message, {
+        details:
+          process.env.NODE_ENV === "development" ? e.details : undefined,
+        status: e.status ?? 502,
       });
-      const { body, status } = generationFailureBody(
-        e.code,
-        OPENAI_GENERATION_FAILED_MESSAGE,
-        {
-          details: e.details ?? safe.message,
-          status: e.statusCode,
-        },
-      );
       return NextResponse.json(body, { status });
     }
 

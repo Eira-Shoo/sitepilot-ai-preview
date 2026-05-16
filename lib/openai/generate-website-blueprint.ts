@@ -20,193 +20,85 @@ import {
   isMockGenerationForced,
   logGenerationConfigOnce,
 } from "@/lib/ai/generation-config";
-import { OPENAI_KEY_INVALID_MESSAGE, OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
-import { openAiKeySuffix, resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
+import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
+import { resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 
 export type BlueprintGenerationSource = "openai" | "mock";
 
-export const OPENAI_GENERATION_FAILED_MESSAGE =
-  "Could not generate website draft with OpenAI.";
-
-export type SafeErrorInfo = {
-  name: string;
-  message: string;
-  code?: string;
-  status?: number;
-  type?: string;
-  stack?: string;
-};
-
-function safeString(value: unknown, maxLen = 500): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value.slice(0, maxLen);
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return "";
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
 }
 
-function readMessage(error: unknown): string {
-  try {
-    if (typeof error === "string") return error.slice(0, 500);
-    if (OpenAiGenerationError.isInstance(error)) {
-      return error.plainMessage;
-    }
-    if (typeof error !== "object" || error === null) return "";
-    if (error instanceof RangeError) {
-      return "Maximum call stack size exceeded";
-    }
-    const own = Object.getOwnPropertyDescriptor(error, "message");
-    if (own && typeof own.value === "string") {
-      return own.value.slice(0, 500);
-    }
-  } catch {
-    /* avoid getters / cause chains that recurse */
+function getErrorStatus(error: unknown): number | undefined {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof (error as { status?: unknown }).status === "number"
+  ) {
+    return (error as { status: number }).status;
   }
-  return "";
+
+  return undefined;
 }
 
-/** Extract primitive error fields only — never walks cause chains or circular objects. */
-export function toSafeErrorInfo(error: unknown): SafeErrorInfo {
-  const fallback: SafeErrorInfo = {
-    name: "Error",
-    message: "OpenAI generation failed",
-  };
-
-  try {
-    if (OpenAiGenerationError.isInstance(error)) {
-      const info: SafeErrorInfo = {
-        name: error.name,
-        message: error.plainMessage,
-        code: error.code,
-        status: error.statusCode,
-      };
-      if (process.env.NODE_ENV === "development" && typeof error.stack === "string") {
-        info.stack = error.stack.slice(0, 2000);
-      }
-      return info;
-    }
-
-    if (typeof error === "string") {
-      return { name: "Error", message: error.slice(0, 500) };
-    }
-
-    if (typeof error !== "object" || error === null) {
-      return fallback;
-    }
-
-    const e = error as Record<string, unknown>;
-    const info: SafeErrorInfo = {
-      name: safeString(e.name) || "Error",
-      message: readMessage(error) || fallback.message,
-    };
-
-    const code = safeString(e.code);
-    if (code) info.code = code;
-
-    const status =
-      typeof e.status === "number"
-        ? e.status
-        : typeof e.statusCode === "number"
-          ? e.statusCode
-          : undefined;
-    if (status !== undefined) info.status = status;
-
-    const type = safeString(e.type);
-    if (type) info.type = type;
-
-    if (process.env.NODE_ENV === "development" && typeof e.stack === "string") {
-      info.stack = e.stack.slice(0, 2000);
-    }
-
-    return info;
-  } catch {
-    return fallback;
+function getErrorCode(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  ) {
+    return (error as { code: string }).code;
   }
+
+  return "openai_generation_failed";
 }
 
 export class OpenAiGenerationError extends Error {
-  readonly plainMessage: string;
-  readonly statusCode: number;
-  readonly code: string;
-  readonly details?: string;
+  code: string;
+  status?: number;
+  details?: string;
 
   constructor(
     message: string,
-    options?: { statusCode?: number; code?: string; details?: string },
+    options?: { code?: string; status?: number; details?: string },
   ) {
     super(message);
-    this.plainMessage = message;
     this.name = "OpenAiGenerationError";
-    this.statusCode = options?.statusCode ?? 502;
     this.code = options?.code ?? "openai_generation_failed";
-    if (options?.details) {
-      this.details = options.details.slice(0, 500);
-    }
-  }
-
-  static isInstance(error: unknown): error is OpenAiGenerationError {
-    return (
-      error instanceof OpenAiGenerationError ||
-      (typeof error === "object" &&
-        error !== null &&
-        (error as { name?: string }).name === "OpenAiGenerationError")
-    );
+    this.status = options?.status;
+    this.details = options?.details;
   }
 }
 
-function isOpenAiAuthError(info: SafeErrorInfo): boolean {
-  return info.status === 401 || info.code === "invalid_api_key";
-}
-
-/** Never throws; never re-wraps an existing OpenAiGenerationError with nested causes. */
-function normalizeOpenAiFailure(error: unknown): OpenAiGenerationError {
-  try {
-    if (OpenAiGenerationError.isInstance(error)) {
-      return error;
-    }
-
-    const safe = toSafeErrorInfo(error);
-
-    if (
-      safe.message.includes("Maximum call stack") ||
-      error instanceof RangeError
-    ) {
-      return new OpenAiGenerationError(
-        "OpenAI response could not be processed (nested data). Please try again.",
-        {
-          statusCode: 502,
-          code: "openai_response_processing_failed",
-          details:
-            process.env.NODE_ENV === "development"
-              ? "Maximum call stack size exceeded"
-              : undefined,
-        },
-      );
-    }
-
-    if (isOpenAiAuthError(safe)) {
-      const suffix = openAiKeySuffix();
-      const hint = suffix ? ` (aktiver Schlüssel endet auf …${suffix})` : "";
-      return new OpenAiGenerationError(`${OPENAI_KEY_INVALID_MESSAGE}${hint}`, {
-        statusCode: 401,
-        code: "openai_invalid_api_key",
-        details: safe.message,
-      });
-    }
-
-    return new OpenAiGenerationError(safe.message || OPENAI_GENERATION_FAILED_MESSAGE, {
-      statusCode: safe.status ?? 502,
-      code: safe.code ?? "openai_generation_failed",
-      details:
-        process.env.NODE_ENV === "development"
-          ? safe.message || undefined
-          : undefined,
+function handleOpenAiCatch(error: unknown): never {
+  if (error instanceof OpenAiGenerationError) {
+    console.error("[OpenAI generation failed]", {
+      code: error.code,
+      status: error.status,
+      message: error.message,
     });
-  } catch {
-    return new OpenAiGenerationError(OPENAI_GENERATION_FAILED_MESSAGE, {
-      statusCode: 502,
-      code: "openai_generation_failed",
-    });
+    throw error;
   }
+
+  const message = getErrorMessage(error);
+  const status = getErrorStatus(error);
+  const code = getErrorCode(error);
+
+  console.error("[OpenAI generation failed]", {
+    code,
+    status,
+    message,
+  });
+
+  throw new OpenAiGenerationError("Could not generate website draft with OpenAI.", {
+    code,
+    status,
+    details: process.env.NODE_ENV === "development" ? message : undefined,
+  });
 }
 
 function logGenerationSource(source: BlueprintGenerationSource) {
@@ -219,8 +111,8 @@ function getClient() {
   const apiKey = resolveOpenAiApiKey();
   if (!apiKey) {
     throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE, {
-      statusCode: 503,
       code: "openai_key_missing",
+      status: 503,
     });
   }
   return new OpenAI({ apiKey });
@@ -246,12 +138,20 @@ async function requestBlueprintJson(
   });
 
   const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new OpenAiGenerationError("OpenAI returned an empty response");
+  if (!raw) {
+    throw new OpenAiGenerationError("OpenAI returned an empty response", {
+      code: "openai_empty_response",
+      status: 502,
+    });
+  }
 
   try {
     return JSON.parse(raw) as unknown;
   } catch {
-    throw new OpenAiGenerationError("OpenAI returned invalid JSON");
+    throw new OpenAiGenerationError("OpenAI returned invalid JSON", {
+      code: "openai_invalid_json",
+      status: 502,
+    });
   }
 }
 
@@ -280,7 +180,11 @@ async function parseAndEnrich(
       );
     }
     if (attempt === 1) {
-      throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`);
+      throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`, {
+        code: "blueprint_validation_failed",
+        status: 502,
+        details: process.env.NODE_ENV === "development" ? issues : undefined,
+      });
     }
     current = await requestBlueprintJson(
       openai,
@@ -289,7 +193,10 @@ async function parseAndEnrich(
     );
   }
 
-  throw new OpenAiGenerationError("Blueprint validation failed");
+  throw new OpenAiGenerationError("Blueprint validation failed", {
+    code: "blueprint_validation_failed",
+    status: 502,
+  });
 }
 
 async function generateBlueprintFromOpenAi(
@@ -344,17 +251,16 @@ export async function createBlueprintFromOnboarding(
     try {
       assertGenerationConfigured();
     } catch {
-      throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE);
+      throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE, {
+        code: "openai_key_missing",
+        status: 503,
+      });
     }
     const blueprint = await generateBlueprintFromOpenAi(data);
     const source: BlueprintGenerationSource = "openai";
     logGenerationSource(source);
     return { blueprint, source };
   } catch (error) {
-    console.error(
-      "[generate-website] OpenAI generation failed",
-      toSafeErrorInfo(error),
-    );
     if (options.allowMockFallback) {
       console.warn("[SitePilot] OpenAI generation failed; using mock blueprint");
       const source: BlueprintGenerationSource = "mock";
@@ -364,6 +270,6 @@ export async function createBlueprintFromOnboarding(
         source,
       };
     }
-    throw normalizeOpenAiFailure(error);
+    handleOpenAiCatch(error);
   }
 }
