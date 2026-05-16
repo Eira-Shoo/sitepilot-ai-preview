@@ -40,7 +40,7 @@ export function hasOpenAiKey(): boolean {
   return Boolean(key && key.length > 10);
 }
 
-/** Use deterministic mock builder instead of OpenAI (public demo or no key). */
+/** Use deterministic mock builder instead of OpenAI (NEXT_PUBLIC_DEMO_MODE=1 only). */
 export function shouldUseMockAiGeneration(): boolean {
-  return isPublicDemoMode() || !hasOpenAiKey();
+  return isPublicDemoMode();
 }

@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { onboardingSchema } from "@/lib/validators/onboarding";
 import { rateLimit } from "@/lib/rate-limit";
 import { isDemoDeploy, isPublicDemoMode } from "@/lib/runtime";
+import {
+  getGenerationConfigState,
+  logGenerationConfigOnce,
+  OPENAI_KEY_MISSING_MESSAGE,
+} from "@/lib/ai/generation-config";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import {
   createBlueprintFromOnboarding,
@@ -30,8 +35,16 @@ export async function POST(request: Request) {
 
   const { onboarding, projectId } = parsed.data;
   const previewDeploy = isDemoDeploy();
-  /** Only force mock on OpenAI failure when NEXT_PUBLIC_DEMO_MODE=1 (not merely offline preview). */
   const allowMockFallback = isPublicDemoMode();
+
+  logGenerationConfigOnce();
+
+  if (getGenerationConfigState() === "unconfigured") {
+    return NextResponse.json(
+      { error: OPENAI_KEY_MISSING_MESSAGE, code: "openai_key_missing" },
+      { status: 503 },
+    );
+  }
 
   try {
     const { blueprint, source } = await createBlueprintFromOnboarding(onboarding, {

@@ -7,6 +7,7 @@ import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-bl
 import { demoBlueprint } from "@/lib/demo-blueprint";
 import { loadDemoDraft, saveDemoDraft } from "@/lib/demo-session";
 import { Card, CardContent } from "@/components/ui/card";
+import { GenerationEnvironmentPanel } from "@/components/builder/generation-environment-panel";
 
 type Props = {
   projectId: string;
@@ -49,14 +50,17 @@ export function DemoProjectShell({
   }
 
   return (
-    <ProjectWorkspace
-      projectId={projectId}
-      initialBlueprint={blueprint}
-      status={status}
-      publishedSlug={publishedSlug}
-      onBlueprintUpdate={handleBlueprintUpdate}
-      isDemoPreview
-      generationSource={generationSource}
-    />
+    <div className="space-y-4">
+      <GenerationEnvironmentPanel lastSource={generationSource} />
+      <ProjectWorkspace
+        projectId={projectId}
+        initialBlueprint={blueprint}
+        status={status}
+        publishedSlug={publishedSlug}
+        onBlueprintUpdate={handleBlueprintUpdate}
+        isDemoPreview
+        generationSource={generationSource}
+      />
+    </div>
   );
 }

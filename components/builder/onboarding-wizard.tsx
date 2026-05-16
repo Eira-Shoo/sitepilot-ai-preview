@@ -13,6 +13,8 @@ import { defaultOnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { saveDemoDraft } from "@/lib/demo-session";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
+import { GenerationEnvironmentPanel } from "@/components/builder/generation-environment-panel";
+import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-config";
 import { toast } from "sonner";
 import {
   AUDIENCE_FEEL_TAGS,
@@ -64,6 +66,8 @@ export function OnboardingWizard() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [payload, setPayload] = useState<OnboardingPayload>(() => defaultOnboardingPayload());
+  const [lastGenerationSource, setLastGenerationSource] =
+    useState<BlueprintGenerationSource | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -148,6 +152,23 @@ export function OnboardingWizard() {
   }
 
   async function generate() {
+    const demoClient =
+      process.env.NEXT_PUBLIC_DEMO_MODE === "1" ||
+      process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
+    if (!demoClient) {
+      try {
+        const statusRes = await fetch("/api/ai/generation-status");
+        const status = (await statusRes.json()) as { configState?: string };
+        if (status.configState === "unconfigured") {
+          toast.error(OPENAI_KEY_MISSING_MESSAGE);
+          return;
+        }
+      } catch {
+        /* server will validate */
+      }
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/ai/generate-website", {
@@ -162,8 +183,13 @@ export function OnboardingWizard() {
         return;
       }
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { error?: string }).error ?? "Failed");
+        const err = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        const message = err.error ?? "Failed";
+        if (err.code === "openai_key_missing") {
+          toast.error(message);
+          return;
+        }
+        throw new Error(message);
       }
       const json = (await res.json()) as {
         projectId: string;
@@ -174,6 +200,7 @@ export function OnboardingWizard() {
       if (process.env.NODE_ENV === "development") {
         console.log("Generation source:", source);
       }
+      setLastGenerationSource(source);
       if (json.blueprint) saveDemoDraft(json.blueprint, source);
       localStorage.removeItem(STORAGE_KEY);
       toast.success(
@@ -254,6 +281,10 @@ export function OnboardingWizard() {
         Answer the questions you can. Skip what you do not know. The AI will fill the gaps and create a draft you can
         edit.
       </p>
+
+      <div className="mt-4">
+        <GenerationEnvironmentPanel lastSource={lastGenerationSource} />
+      </div>
 
       <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
         <div

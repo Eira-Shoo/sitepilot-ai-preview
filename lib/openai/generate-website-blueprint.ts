@@ -15,7 +15,13 @@ import {
   buildBlueprintSystemPrompt,
   buildBlueprintUserPayload,
 } from "@/lib/ai/prompts";
-import { hasOpenAiKey, shouldUseMockAiGeneration } from "@/lib/runtime";
+import {
+  assertGenerationConfigured,
+  isMockGenerationForced,
+  logGenerationConfigOnce,
+  OPENAI_KEY_MISSING_MESSAGE,
+} from "@/lib/ai/generation-config";
+import { hasOpenAiKey } from "@/lib/runtime";
 
 export type BlueprintGenerationSource = "openai" | "mock";
 
@@ -130,7 +136,9 @@ export async function createBlueprintFromOnboarding(
   }
   const data = parsedOnboarding.data;
 
-  if (shouldUseMockAiGeneration()) {
+  logGenerationConfigOnce();
+
+  if (isMockGenerationForced()) {
     const source: BlueprintGenerationSource = "mock";
     logGenerationSource(source);
     return {
@@ -140,6 +148,11 @@ export async function createBlueprintFromOnboarding(
   }
 
   try {
+    try {
+      assertGenerationConfigured();
+    } catch {
+      throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE);
+    }
     const blueprint = await generateBlueprintFromOpenAi(data);
     const source: BlueprintGenerationSource = "openai";
     logGenerationSource(source);
