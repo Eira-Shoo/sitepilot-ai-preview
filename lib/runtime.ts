@@ -34,3 +34,13 @@ export function isOfflinePreview(): boolean {
 export function isDemoDeploy(): boolean {
   return isPublicDemoMode() || isOfflinePreview();
 }
+
+export function hasOpenAiKey(): boolean {
+  const key = process.env.OPENAI_API_KEY?.trim();
+  return Boolean(key && key.length > 10);
+}
+
+/** Use deterministic mock builder instead of OpenAI (public demo or no key). */
+export function shouldUseMockAiGeneration(): boolean {
+  return isPublicDemoMode() || !hasOpenAiKey();
+}

@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { generateBlueprintFromOnboarding } from "@/lib/openai/blueprint";
 import { onboardingSchema } from "@/lib/validators/onboarding";
 import { rateLimit } from "@/lib/rate-limit";
-import { isDemoDeploy } from "@/lib/runtime";
-import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { isDemoDeploy, isPublicDemoMode } from "@/lib/runtime";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
+import {
+  createBlueprintFromOnboarding,
+  OpenAiGenerationError,
+} from "@/lib/openai/generate-website-blueprint";
 
 const bodySchema = z.object({
   onboarding: onboardingSchema,
@@ -26,27 +28,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  if (isDemoDeploy()) {
-    const blueprint = buildWebsiteBlueprintFromOnboarding(parsed.data.onboarding);
-    return NextResponse.json({ blueprint, projectId: DEMO_PROJECT_ID });
-  }
-
-  const supabase = await createClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { onboarding, projectId } = parsed.data;
+  const previewDeploy = isDemoDeploy();
+  const allowMockFallback = isPublicDemoMode() || previewDeploy;
 
   try {
-    const blueprint = await generateBlueprintFromOnboarding(onboarding);
+    const { blueprint, source } = await createBlueprintFromOnboarding(onboarding, {
+      allowMockFallback,
+    });
+
+    if (previewDeploy) {
+      return NextResponse.json({
+        blueprint,
+        projectId: DEMO_PROJECT_ID,
+        source,
+      });
+    }
+
+    const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     if (projectId) {
       const { error } = await supabase
@@ -69,7 +78,7 @@ export async function POST(request: Request) {
         form_data: onboarding,
         google_place_data: onboarding.localBusiness.placeDetails ?? null,
       });
-      return NextResponse.json({ blueprint, projectId });
+      return NextResponse.json({ blueprint, projectId, source });
     }
 
     const { data: project, error: pErr } = await supabase
@@ -93,12 +102,18 @@ export async function POST(request: Request) {
       google_place_data: onboarding.localBusiness.placeDetails ?? null,
     });
 
-    return NextResponse.json({ blueprint, projectId: project.id });
+    return NextResponse.json({ blueprint, projectId: project.id, source });
   } catch (e) {
     console.error(e);
-    return NextResponse.json(
-      { error: "Generation failed" },
-      { status: 500 },
-    );
+    if (e instanceof OpenAiGenerationError) {
+      return NextResponse.json(
+        {
+          error: e.message,
+          code: "openai_generation_failed",
+        },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   }
 }

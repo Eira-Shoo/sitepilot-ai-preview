@@ -1,60 +1,31 @@
 import OpenAI from "openai";
-import { onboardingSchema } from "@/lib/validators/onboarding";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import {
-  buildBlueprintSystemPrompt,
-  buildBlueprintUserPayload,
-  buildEditBlueprintPrompt,
-  buildRecommendationsPrompt,
-} from "@/lib/ai/prompts";
+import { buildEditBlueprintPrompt, buildRecommendationsPrompt } from "@/lib/ai/prompts";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
 import { mockEditBlueprint } from "@/lib/blueprint/mock-edit-blueprint";
+import { createBlueprintFromOnboarding } from "@/lib/openai/generate-website-blueprint";
+import { hasOpenAiKey, shouldUseMockAiGeneration } from "@/lib/runtime";
 
 function getClient() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("Missing OPENAI_API_KEY");
-  return new OpenAI({ apiKey: key });
+  if (!hasOpenAiKey()) throw new Error("Missing OPENAI_API_KEY");
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
+/** @deprecated Prefer createBlueprintFromOnboarding for routing and fallback control. */
 export async function generateBlueprintFromOnboarding(
   onboarding: unknown,
 ): Promise<WebsiteBlueprint> {
-  const parsedOnboarding = onboardingSchema.safeParse(onboarding);
-  if (!parsedOnboarding.success) {
-    throw new Error("Invalid onboarding payload");
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return buildWebsiteBlueprintFromOnboarding(parsedOnboarding.data);
-  }
-
-  const openai = getClient();
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.7,
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: buildBlueprintSystemPrompt() },
-      { role: "user", content: buildBlueprintUserPayload(parsedOnboarding.data) },
-    ],
+  const { blueprint } = await createBlueprintFromOnboarding(onboarding, {
+    allowMockFallback: shouldUseMockAiGeneration(),
   });
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error("Empty AI response");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("AI returned non-JSON");
-  }
-  return parseWebsiteBlueprint(parsed);
+  return blueprint;
 }
 
 export async function editBlueprintWithInstruction(
   blueprint: WebsiteBlueprint,
   instruction: string,
 ): Promise<WebsiteBlueprint> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (shouldUseMockAiGeneration()) {
     return mockEditBlueprint(blueprint, instruction);
   }
 
@@ -87,6 +58,9 @@ export async function recommendImprovements(
 ): Promise<
   { recommendation_type: string; title: string; description: string; priority: string }[]
 > {
+  if (shouldUseMockAiGeneration()) {
+    throw new Error("Recommendations require OpenAI (disabled in demo mode)");
+  }
   const openai = getClient();
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
