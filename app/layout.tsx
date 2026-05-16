@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "SitePilot AI — AI websites for small businesses",
+    default: "SitePilot AI — Free website draft for your business",
     template: "%s | SitePilot AI",
   },
   description:
-    "Describe your business, connect your Google listing, and get a conversion-focused website draft with copy, SEO, and forms — refined by experts.",
+    "Get a ready-to-launch website draft for your business in minutes. Free AI draft with copy, sections, SEO, and contact blocks.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"),

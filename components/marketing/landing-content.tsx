@@ -383,7 +383,7 @@ function PricingCard({
           ))}
         </ul>
         <Button asChild className="w-full rounded-xl" variant={highlight ? "default" : "outline"}>
-          <Link href={href}>Choose {name}</Link>
+          <Link href={href}>Create free draft</Link>
         </Button>
       </CardContent>
     </Card>

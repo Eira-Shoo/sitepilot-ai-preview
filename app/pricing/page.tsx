@@ -83,7 +83,7 @@ export default function PricingPage() {
               ))}
             </ul>
             <Button asChild variant="outline" className="w-full rounded-xl">
-              <Link href="/create">Add monthly care</Link>
+              <Link href="/create">Create free draft</Link>
             </Button>
           </CardContent>
         </Card>
