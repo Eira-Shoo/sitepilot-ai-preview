@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import { demoBlueprint } from "@/lib/demo-blueprint";
-import { loadDemoBlueprint } from "@/lib/demo-session";
+import { loadDemoDraft } from "@/lib/demo-session";
 
 export function DemoDashboardProjectCard() {
   const sampleTitle = `${demoBlueprint.business.name} (sample)`;
@@ -17,10 +17,12 @@ export function DemoDashboardProjectCard() {
   );
 
   useEffect(() => {
-    const bp = loadDemoBlueprint();
-    if (bp) {
-      setTitle(bp.business.name);
-      setSubtitle("Your last generated draft (saved in this browser)");
+    const draft = loadDemoDraft();
+    if (draft) {
+      setTitle(draft.blueprint.business.name);
+      setSubtitle(
+        `Your last generated draft (${draft.source === "openai" ? "OpenAI" : "mock"} · saved in this browser)`,
+      );
     }
   }, []);
 

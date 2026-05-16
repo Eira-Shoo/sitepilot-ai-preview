@@ -14,6 +14,19 @@ You MUST output a single JSON object: a complete SitePilot "website blueprint".
 - Colors must be hex (#RRGGBB). Use branding.colorsPreferred and websiteStyle for brand.brand colors.
 - pages[0].slug MUST be "home" with a full sections array rendered by our safe components only.
 
+## CRITICAL: Use the customer's real questionnaire data (never generic placeholders)
+- Use basics.businessName exactly in business.name, navbar.logoText, and hero (not "Your business").
+- NEVER use generic service names like "Signature offering", "Service 1", or "Your service".
+- If offers.services lists names/prices/durations, EVERY provided service MUST appear in the services section with the SAME name and price/duration.
+- If packages or service prices exist, show them in services and/or pricing sections — do not hide pricing.
+- If basics.city and basics.country exist, mention them in hero, map, contact, and seo.localSeoText.
+- If mainGoal.primary mentions bookings, CTAs must be booking-focused (e.g. "Book now", "Reserve") — NOT generic "Get in touch" or "Collect leads".
+- Reflect branding.websiteStyle, branding.colorsPreferred, branding.mood in brand.* and copy tone.
+- Use seo.mainKeyword and seo.secondaryKeywords in seo.keywords and copy where natural.
+- trust.yearsExperience, trust.guarantees, etc. must appear in the trust section when provided.
+- testimonials: ONLY if onboarding trust.testimonials has real text; otherwise omit section or items: [].
+- imagePrompts must describe THIS business, city, industry, and style — not stock generic scenes.
+
 ## Required top-level fields
 - business: { name, industry, location, language, tone }
 - brand: { primaryColor, secondaryColor, backgroundStyle, fontStyle, designStyle }
@@ -61,12 +74,31 @@ hero, services, trust, testimonials, faq, contact, map, pricing, gallery, before
 export function buildBlueprintUserPayload(onboarding: unknown): string {
   return `Using the FULL onboarding questionnaire below, produce a complete website blueprint JSON.
 
-Use every relevant field: basics, mainGoal, targetAudience, offers.services, packages, branding, media, imageDirection, localBusiness, trust, sitePages, seo, extraFeatures.
+PRIORITY ORDER (must follow):
+1. offers.services — copy each service name, startingPrice, duration, description into services section items
+2. mainGoal — booking/lead goal drives hero + conversionPlan CTAs
+3. basics.businessName, industry, description, city, country
+4. branding colors/style/mood → brand object
+5. seo keywords → seo object and natural copy
+6. trust fields → trust section bullets
+7. localBusiness → map + contact
+8. packages → pricing section when visibility allows
+
+Forbidden unless onboarding is empty: "Signature offering", "Collect leads", "Get in touch" as primary CTA when goal is bookings.
 
 Onboarding JSON:
 ${JSON.stringify(onboarding)}
 
 Return the complete blueprint JSON object only.`;
+}
+
+export function buildBlueprintServicesStrictPrompt(missingServices: string[]): string {
+  return `RETRY — your previous blueprint did not include enough user-provided services.
+
+You MUST include EVERY service below in pages[0].sections (type "services").items with exact names and prices/durations from onboarding:
+${missingServices.map((s) => `- ${s}`).join("\n")}
+
+Do not use generic placeholders. Return the FULL corrected blueprint JSON only.`;
 }
 
 export function buildBlueprintRepairPrompt(validationIssues: string): string {

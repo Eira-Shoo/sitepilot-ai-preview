@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
+import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
+import { GenerationSourceIndicator } from "@/components/dashboard/generation-source-indicator";
 
 const QUICK_INSTRUCTIONS = [
   "Make it more premium",
@@ -30,6 +32,7 @@ export function ProjectWorkspace({
   publishedSlug,
   onBlueprintUpdate,
   isDemoPreview = false,
+  generationSource,
 }: {
   projectId: string;
   initialBlueprint: WebsiteBlueprint | null;
@@ -37,6 +40,7 @@ export function ProjectWorkspace({
   publishedSlug: string | null;
   onBlueprintUpdate?: (blueprint: WebsiteBlueprint) => void;
   isDemoPreview?: boolean;
+  generationSource?: BlueprintGenerationSource | null;
 }) {
   const parsed = useMemo(() => {
     if (!initialBlueprint) return null;
@@ -192,6 +196,7 @@ export function ProjectWorkspace({
               </>
             )}
           </div>
+          <GenerationSourceIndicator source={generationSource} />
         </div>
         <div className="overflow-hidden rounded-3xl border border-border/60 bg-background shadow-xl">
           <WebsiteRenderer blueprint={blueprint} projectId={projectId} showContactForm />

@@ -30,7 +30,8 @@ export async function POST(request: Request) {
 
   const { onboarding, projectId } = parsed.data;
   const previewDeploy = isDemoDeploy();
-  const allowMockFallback = isPublicDemoMode() || previewDeploy;
+  /** Only force mock on OpenAI failure when NEXT_PUBLIC_DEMO_MODE=1 (not merely offline preview). */
+  const allowMockFallback = isPublicDemoMode();
 
   try {
     const { blueprint, source } = await createBlueprintFromOnboarding(onboarding, {

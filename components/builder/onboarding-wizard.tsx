@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import { defaultOnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { saveDemoBlueprint } from "@/lib/demo-session";
+import { saveDemoDraft } from "@/lib/demo-session";
+import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 import { toast } from "sonner";
 import {
   AUDIENCE_FEEL_TAGS,
@@ -164,10 +165,20 @@ export function OnboardingWizard() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? "Failed");
       }
-      const json = (await res.json()) as { projectId: string; blueprint?: WebsiteBlueprint };
-      if (json.blueprint) saveDemoBlueprint(json.blueprint);
+      const json = (await res.json()) as {
+        projectId: string;
+        blueprint?: WebsiteBlueprint;
+        source?: BlueprintGenerationSource;
+      };
+      const source: BlueprintGenerationSource = json.source === "openai" ? "openai" : "mock";
+      if (process.env.NODE_ENV === "development") {
+        console.log("Generation source:", source);
+      }
+      if (json.blueprint) saveDemoDraft(json.blueprint, source);
       localStorage.removeItem(STORAGE_KEY);
-      toast.success("Draft ready");
+      toast.success(
+        source === "openai" ? "AI draft ready (OpenAI)" : "Draft ready (demo builder)",
+      );
       router.push(`/dashboard/projects/${json.projectId}`);
       router.refresh();
     } catch (e) {

@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { ProjectWorkspace } from "@/components/dashboard/project-workspace";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 import { demoBlueprint } from "@/lib/demo-blueprint";
-import { loadDemoBlueprint, saveDemoBlueprint } from "@/lib/demo-session";
+import { loadDemoDraft, saveDemoDraft } from "@/lib/demo-session";
 import { Card, CardContent } from "@/components/ui/card";
 
 type Props = {
@@ -19,17 +20,24 @@ export function DemoProjectShell({
   publishedSlug = null,
 }: Props) {
   const [blueprint, setBlueprint] = useState<WebsiteBlueprint | null>(null);
+  const [generationSource, setGenerationSource] = useState<BlueprintGenerationSource | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const stored = loadDemoBlueprint();
-    setBlueprint(stored ?? demoBlueprint);
+    const stored = loadDemoDraft();
+    if (stored) {
+      setBlueprint(stored.blueprint);
+      setGenerationSource(stored.source);
+    } else {
+      setBlueprint(demoBlueprint);
+      setGenerationSource("mock");
+    }
     setReady(true);
   }, []);
 
   function handleBlueprintUpdate(next: WebsiteBlueprint) {
     setBlueprint(next);
-    saveDemoBlueprint(next);
+    saveDemoDraft(next, generationSource ?? "mock");
   }
 
   if (!ready || !blueprint) {
@@ -48,6 +56,7 @@ export function DemoProjectShell({
       publishedSlug={publishedSlug}
       onBlueprintUpdate={handleBlueprintUpdate}
       isDemoPreview
+      generationSource={generationSource}
     />
   );
 }
