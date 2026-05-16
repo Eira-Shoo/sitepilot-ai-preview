@@ -16,6 +16,7 @@ import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { saveDemoDraft } from "@/lib/demo-session";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 import { GenerationEnvironmentPanel } from "@/components/builder/generation-environment-panel";
+import { BriefImportDialog } from "@/components/builder/brief-import-dialog";
 import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
 import { toast } from "sonner";
 import {
@@ -98,6 +99,7 @@ export function OnboardingWizard() {
   const [lastGenerationError, setLastGenerationError] = useState<GenerationApiFailure | null>(
     null,
   );
+  const [briefImportOpen, setBriefImportOpen] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -340,6 +342,34 @@ export function OnboardingWizard() {
         Answer the questions you can. Skip what you do not know. The AI will fill the gaps and create a draft you can
         edit.
       </p>
+
+      <Card className="mt-4 rounded-2xl border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium text-foreground">Import business brief</p>
+            <p className="text-sm text-muted-foreground">
+              Paste text, upload .txt/.json/.md, or load the Apex Barber test brief.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 rounded-full"
+            onClick={() => setBriefImportOpen(true)}
+          >
+            Import business brief
+          </Button>
+        </CardContent>
+      </Card>
+
+      <BriefImportDialog
+        open={briefImportOpen}
+        onClose={() => setBriefImportOpen(false)}
+        onApply={(imported) => {
+          setPayload(ensureBrandingArrays(imported));
+          setStep(14);
+        }}
+      />
 
       <div className="mt-4">
         <GenerationEnvironmentPanel
