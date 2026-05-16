@@ -1,17 +1,11 @@
 import OpenAI from "openai";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import { onboardingSchema } from "@/lib/validators/onboarding";
-import {
-  parseWebsiteBlueprint,
-  safeParseWebsiteBlueprint,
-} from "@/lib/validators/website-blueprint";
+import { safeParseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
 import { enrichBlueprintFromOnboarding } from "@/lib/blueprint/enrich-blueprint-from-onboarding";
-import { validateProvidedServicesInBlueprint } from "@/lib/blueprint/validate-blueprint-onboarding";
 import {
-  buildBlueprintRepairPrompt,
-  buildBlueprintServicesStrictPrompt,
   buildBlueprintSystemPrompt,
   buildBlueprintUserPayload,
 } from "@/lib/ai/prompts";
@@ -25,9 +19,19 @@ import { resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 
 export type BlueprintGenerationSource = "openai" | "mock";
 
+/** Set DEBUG_BYPASS_ENRICH=1 to skip enrich/finalize (debug only). */
+const DEBUG_BYPASS_ENRICH = process.env.DEBUG_BYPASS_ENRICH === "1";
+
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
+  try {
+    if (typeof error === "string") return error.slice(0, 500);
+    if (error instanceof Error) {
+      const own = Object.getOwnPropertyDescriptor(error, "message");
+      if (own && typeof own.value === "string") return own.value.slice(0, 500);
+    }
+  } catch {
+    /* never read nested cause */
+  }
   return "Unknown error";
 }
 
@@ -121,11 +125,10 @@ function getClient() {
 async function requestBlueprintJson(
   openai: OpenAI,
   onboarding: OnboardingPayload,
-  repairHint?: string,
 ): Promise<unknown> {
-  const userContent = repairHint
-    ? `${buildBlueprintUserPayload(onboarding)}\n\n${repairHint}`
-    : buildBlueprintUserPayload(onboarding);
+  console.log("[openai] 2 before prompt build");
+  const userContent = buildBlueprintUserPayload(onboarding);
+  console.log("[openai] 3 before OpenAI call");
 
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
@@ -137,6 +140,8 @@ async function requestBlueprintJson(
     ],
   });
 
+  console.log("[openai] 4 after OpenAI call");
+
   const raw = completion.choices[0]?.message?.content;
   if (!raw) {
     throw new OpenAiGenerationError("OpenAI returned an empty response", {
@@ -145,8 +150,11 @@ async function requestBlueprintJson(
     });
   }
 
+  console.log("[openai] 5 before JSON parse");
   try {
-    return JSON.parse(raw) as unknown;
+    const parsed = JSON.parse(raw) as unknown;
+    console.log("[openai] 6 after JSON parse");
+    return parsed;
   } catch {
     throw new OpenAiGenerationError("OpenAI returned invalid JSON", {
       code: "openai_invalid_json",
@@ -155,68 +163,36 @@ async function requestBlueprintJson(
   }
 }
 
-function formatValidationIssues(parsed: unknown): string | null {
-  const validated = safeParseWebsiteBlueprint(parsed);
-  if (validated.success) return null;
-  return validated.error.issues
-    .slice(0, 12)
-    .map((i) => `${i.path.join(".")}: ${i.message}`)
-    .join("; ");
-}
-
-async function parseAndEnrich(
-  parsed: unknown,
-  onboarding: OnboardingPayload,
-  openai: OpenAI,
-): Promise<WebsiteBlueprint> {
-  let current = parsed;
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const issues = formatValidationIssues(current);
-    if (!issues) {
-      return enrichBlueprintFromOnboarding(
-        parseWebsiteBlueprint(current),
-        onboarding,
-      );
-    }
-    if (attempt === 1) {
-      throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`, {
-        code: "blueprint_validation_failed",
-        status: 502,
-        details: process.env.NODE_ENV === "development" ? issues : undefined,
-      });
-    }
-    current = await requestBlueprintJson(
-      openai,
-      onboarding,
-      buildBlueprintRepairPrompt(issues),
-    );
-  }
-
-  throw new OpenAiGenerationError("Blueprint validation failed", {
-    code: "blueprint_validation_failed",
-    status: 502,
-  });
-}
-
 async function generateBlueprintFromOpenAi(
   onboarding: OnboardingPayload,
 ): Promise<WebsiteBlueprint> {
+  console.log("[openai] 1 function start");
   const openai = getClient();
-  let parsed: unknown = await requestBlueprintJson(openai, onboarding);
+  const parsed = await requestBlueprintJson(openai, onboarding);
 
-  let blueprint = await parseAndEnrich(parsed, onboarding, openai);
+  console.log("[openai] 7 before Zod validate");
+  const validated = safeParseWebsiteBlueprint(parsed);
+  if (!validated.success) {
+    const issues = validated.error.issues
+      .slice(0, 12)
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`, {
+      code: "blueprint_validation_failed",
+      status: 502,
+      details: process.env.NODE_ENV === "development" ? issues : undefined,
+    });
+  }
+  console.log("[openai] 8 after Zod validate");
 
-  const serviceCheck = validateProvidedServicesInBlueprint(blueprint, onboarding);
-  if (!serviceCheck.ok && serviceCheck.missing.length > 0) {
-    parsed = await requestBlueprintJson(
-      openai,
-      onboarding,
-      buildBlueprintServicesStrictPrompt(serviceCheck.missing),
-    );
-    blueprint = await parseAndEnrich(parsed, onboarding, openai);
+  if (DEBUG_BYPASS_ENRICH) {
+    console.log("[openai] 9 SKIP enrich/finalize (DEBUG_BYPASS_ENRICH=1)");
+    return validated.data;
   }
 
+  console.log("[openai] 9 before enrich/finalize");
+  const blueprint = enrichBlueprintFromOnboarding(validated.data, onboarding);
+  console.log("[openai] 10 after enrich/finalize");
   return blueprint;
 }
 
@@ -230,6 +206,7 @@ export async function createBlueprintFromOnboarding(
   onboarding: unknown,
   options: { allowMockFallback: boolean },
 ): Promise<{ blueprint: WebsiteBlueprint; source: BlueprintGenerationSource }> {
+  console.log("[openai] 1 function start (createBlueprintFromOnboarding)");
   const parsedOnboarding = onboardingSchema.safeParse(onboarding);
   if (!parsedOnboarding.success) {
     throw new Error("Invalid onboarding payload");

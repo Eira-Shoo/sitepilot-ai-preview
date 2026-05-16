@@ -1,6 +1,6 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { buildParsedBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
 import { brandingCombinedForColors } from "@/lib/onboarding/branding-helpers";
 
 const SECTION_ORDER: WebsiteBlueprint["pages"][number]["sections"][number]["type"][] = [
@@ -91,7 +91,7 @@ export function finalizeLandingPageBlueprint(
   blueprint: WebsiteBlueprint,
   onboarding: OnboardingPayload,
 ): WebsiteBlueprint {
-  const mock = buildWebsiteBlueprintFromOnboarding(onboarding);
+  const mock = buildParsedBlueprintFromOnboarding(onboarding);
   const mockHome = mock.pages[0];
   if (!blueprint.pages?.[0] || !mockHome) return mock;
 

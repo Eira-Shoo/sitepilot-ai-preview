@@ -64,7 +64,8 @@ function inferColors(style: string, preferred: string) {
   return { primary: "#3b82f6", secondary: "#8b5cf6" };
 }
 
-export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): WebsiteBlueprint {
+/** Parsed mock blueprint without finalize (used as reference inside finalize to avoid recursion). */
+export function buildParsedBlueprintFromOnboarding(o: OnboardingPayload): WebsiteBlueprint {
   const name = o.basics.businessName.trim() || "Your business";
   const loc = [o.basics.city?.trim(), o.basics.country?.trim()].filter(Boolean).join(", ");
   const { primary, secondary } = inferColors(
@@ -499,7 +500,11 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
     extraFeatures: extra,
   };
 
-  return finalizeLandingPageBlueprint(parseWebsiteBlueprint(raw), o);
+  return parseWebsiteBlueprint(raw);
+}
+
+export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): WebsiteBlueprint {
+  return finalizeLandingPageBlueprint(buildParsedBlueprintFromOnboarding(o), o);
 }
 
 function buildStructuredPrompts(o: OnboardingPayload, heroPrompt: string) {

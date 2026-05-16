@@ -78,7 +78,42 @@ hero, services, trust, testimonials, faq, contact, map, pricing, gallery, before
 - Use realistic currency formatting from onboarding prices (€, $, etc.).`;
 }
 
+/** Strip circular / huge fields before JSON.stringify in prompts. */
+function onboardingForPrompt(onboarding: unknown): unknown {
+  if (!onboarding || typeof onboarding !== "object") return onboarding;
+  const o = onboarding as Record<string, unknown>;
+  const localBusiness =
+    o.localBusiness && typeof o.localBusiness === "object"
+      ? { ...(o.localBusiness as Record<string, unknown>), placeDetails: undefined }
+      : o.localBusiness;
+  const media =
+    o.media && typeof o.media === "object"
+      ? {
+          ...(o.media as Record<string, unknown>),
+          assets: Array.isArray((o.media as { assets?: unknown }).assets)
+            ? (o.media as { assets: unknown[] }).assets.map((a) => {
+                if (!a || typeof a !== "object") return a;
+                const asset = { ...(a as Record<string, unknown>) };
+                const url = asset.previewDataUrl;
+                if (typeof url === "string" && url.length > 200) {
+                  asset.previewDataUrl = "[truncated]";
+                }
+                return asset;
+              })
+            : [],
+        }
+      : o.media;
+  return { ...o, localBusiness, media };
+}
+
 export function buildBlueprintUserPayload(onboarding: unknown): string {
+  const safe = onboardingForPrompt(onboarding);
+  let onboardingJson: string;
+  try {
+    onboardingJson = JSON.stringify(safe);
+  } catch {
+    onboardingJson = "{}";
+  }
   return `Using the FULL onboarding questionnaire below, produce a complete website blueprint JSON.
 
 PRIORITY ORDER (must follow):
@@ -94,7 +129,7 @@ PRIORITY ORDER (must follow):
 Forbidden unless onboarding is empty: "Signature offering", "Collect leads", "Get in touch" as primary CTA when goal is bookings.
 
 Onboarding JSON:
-${JSON.stringify(onboarding)}
+${onboardingJson}
 
 Return the complete blueprint JSON object only.`;
 }

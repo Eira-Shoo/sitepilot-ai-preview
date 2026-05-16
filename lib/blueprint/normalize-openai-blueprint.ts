@@ -1,4 +1,11 @@
 const MAX_COERCE_DEPTH = 12;
+export const MAX_BLUEPRINT_WALK_DEPTH = 20;
+
+function assertWalkDepth(depth: number, label: string) {
+  if (depth > MAX_BLUEPRINT_WALK_DEPTH) {
+    throw new Error(`Blueprint processing exceeded max depth at ${label}`);
+  }
+}
 
 /** Coerce LLM output (often nested or circular objects) into plain strings. */
 export function coerceToString(
@@ -90,7 +97,8 @@ function normalizeServiceLikeItems(items: unknown): unknown[] {
   });
 }
 
-function normalizeSection(section: unknown): unknown {
+function normalizeSection(section: unknown, depth = 0): unknown {
+  assertWalkDepth(depth, "section");
   if (!section || typeof section !== "object") return section;
   const s = { ...(section as Record<string, unknown>) };
   const type = String(s.type ?? "");
@@ -392,13 +400,14 @@ export function normalizeOpenAiBlueprintPayload(raw: unknown): unknown {
   }
 
   if (Array.isArray(bp.pages)) {
-    bp.pages = bp.pages.map((page) => {
+    bp.pages = bp.pages.map((page, pageIdx) => {
+      assertWalkDepth(0, `pages[${pageIdx}]`);
       if (!page || typeof page !== "object") return page;
       const p = { ...(page as Record<string, unknown>) };
       p.slug = coerceToString(p.slug, "home");
       p.title = coerceToString(p.title);
       if (Array.isArray(p.sections)) {
-        p.sections = p.sections.map(normalizeSection);
+        p.sections = p.sections.map((s) => normalizeSection(s, 1));
       }
       return p;
     });

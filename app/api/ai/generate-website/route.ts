@@ -39,6 +39,7 @@ function logGenerationContext(label: string, extra?: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
+  console.log("[generate] 1 route start");
   const ip = request.headers.get("x-forwarded-for") ?? "local";
   const rl = rateLimit(`ai-gen:${ip}`, 8, 60 * 60 * 1000);
   if (!rl.ok) {
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     return NextResponse.json(body, { status });
   }
 
+  console.log("[generate] 2 body parsed");
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -102,13 +104,16 @@ export async function POST(request: Request) {
   }
 
   try {
+    console.log("[generate] 3 before createBlueprintFromOnboarding");
     const { blueprint, source } = await createBlueprintFromOnboarding(onboarding, {
       allowMockFallback,
     });
+    console.log("[generate] 4 after createBlueprintFromOnboarding");
 
     logGenerationContext("Generate success", { source });
 
     if (previewDeploy) {
+      console.log("[generate] 5 response ready");
       return NextResponse.json(
         generationSuccessBody({
           blueprint,
@@ -161,6 +166,7 @@ export async function POST(request: Request) {
         form_data: onboarding,
         google_place_data: onboarding.localBusiness.placeDetails ?? null,
       });
+      console.log("[generate] 5 response ready");
       return NextResponse.json(
         generationSuccessBody({ blueprint, projectId, source }),
       );
@@ -187,6 +193,7 @@ export async function POST(request: Request) {
       google_place_data: onboarding.localBusiness.placeDetails ?? null,
     });
 
+    console.log("[generate] 5 response ready");
     return NextResponse.json(
       generationSuccessBody({ blueprint, projectId: project.id, source }),
     );
