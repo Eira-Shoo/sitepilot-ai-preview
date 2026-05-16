@@ -121,6 +121,8 @@ const mapSectionSchema = z.object({
   headline: z.string().optional().default(""),
   address: z.string().optional().default(""),
   placeId: z.string().optional().default(""),
+  openingHours: z.string().optional().default(""),
+  mapsLink: z.string().optional().default(""),
 });
 
 const pricingSectionSchema = z

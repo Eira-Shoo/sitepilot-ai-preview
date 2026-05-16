@@ -73,6 +73,8 @@ export const demoBlueprint: WebsiteBlueprint = {
           headline: "Visit us",
           address: "Torstraße 1, 10119 Berlin",
           placeId: "",
+          openingHours: "",
+          mapsLink: "",
         },
         {
           type: "faq",

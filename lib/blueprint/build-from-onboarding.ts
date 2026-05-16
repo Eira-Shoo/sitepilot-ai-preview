@@ -251,11 +251,14 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
   }
 
   if (hasFeature(extra, "Testimonials")) {
-    sections.push({
-      type: "testimonials",
-      headline: "Client stories",
-      items: testimonialItems,
-    });
+    const hasReal = testimonialItems.length > 0;
+    if (hasReal || !o.trust.hideEmptyReviews) {
+      sections.push({
+        type: "testimonials",
+        headline: "Client stories",
+        items: testimonialItems,
+      });
+    }
   }
 
   if (teamAsset?.previewDataUrl) {
@@ -292,6 +295,8 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
       headline: "Find us",
       address: mapAddress,
       placeId: o.localBusiness.placeId?.trim() ?? "",
+      openingHours: o.localBusiness.showHours ? (o.localBusiness.openingHours?.trim() ?? "") : "",
+      mapsLink: o.localBusiness.mapsLink?.trim() ?? "",
     });
   }
 

@@ -1579,19 +1579,176 @@ export function OnboardingWizard() {
           )}
 
           {step === 14 && (
-            <div className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                Review your answers below. Generate produces a structured JSON blueprint (safe renderer). Demo mode
-                never calls paid APIs.
+            <div className="space-y-6 text-sm">
+              <p className="text-muted-foreground">
+                Confirm everything below. Generate creates a validated JSON blueprint (safe renderer). Demo mode does not
+                call paid APIs.
               </p>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>Business: {payload.basics.businessName}</li>
-                <li>Type: {payload.basics.businessType}</li>
-                <li>Goal: {payload.mainGoal.primary}</li>
-                <li>Services: {payload.offers.services.filter((s) => s.name?.trim()).length} defined</li>
-                <li>Media files: {payload.media.assets.length}</li>
-                <li>Features: {payload.extraFeatures.length} selected</li>
-              </ul>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <SummaryCard title="Business">
+                  <p>
+                    <span className="text-muted-foreground">Name:</span> {payload.basics.businessName}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Industry:</span> {payload.basics.industry}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Type:</span> {payload.basics.businessType}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Location:</span>{" "}
+                    {[payload.basics.city, payload.basics.country].filter(Boolean).join(", ") || "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Language:</span> {payload.basics.language}
+                  </p>
+                  {payload.basics.websiteUrl ? (
+                    <p>
+                      <span className="text-muted-foreground">Website:</span> {payload.basics.websiteUrl}
+                    </p>
+                  ) : null}
+                  {payload.basics.description ? (
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      {payload.basics.description.slice(0, 360)}
+                      {payload.basics.description.length > 360 ? "…" : ""}
+                    </p>
+                  ) : null}
+                </SummaryCard>
+
+                <SummaryCard title="Goal & CTAs">
+                  <p>
+                    <span className="text-muted-foreground">Goal:</span> {payload.mainGoal.primary}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Primary CTA:</span> {payload.mainGoal.primaryCta || "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Secondary CTA:</span>{" "}
+                    {payload.mainGoal.secondaryCta || "—"}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Contact:</span> {payload.mainGoal.preferredContact}
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title="Audience">
+                  <p className="text-xs leading-relaxed">
+                    {payload.targetAudience.who || "—"}
+                    {payload.targetAudience.problems ? (
+                      <>
+                        <br />
+                        <span className="text-muted-foreground">Problems:</span> {payload.targetAudience.problems}
+                      </>
+                    ) : null}
+                    {payload.targetAudience.feelTags.length ? (
+                      <span className="mt-2 block text-muted-foreground">
+                        Vibe: {payload.targetAudience.feelTags.join(", ")}
+                      </span>
+                    ) : null}
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title="Services ({payload.offers.services.filter((s) => s.name?.trim()).length})">
+                  <ul className="space-y-2 text-xs">
+                    {payload.offers.services
+                      .filter((s) => s.name?.trim() || s.description?.trim())
+                      .map((s, i) => (
+                        <li key={i} className="rounded-lg border border-border/50 bg-background/40 p-2">
+                          <span className="font-medium text-foreground">{s.name || "Untitled"}</span>
+                          {s.startingPrice ? (
+                            <span className="text-muted-foreground"> · {s.startingPrice}</span>
+                          ) : null}
+                          {s.duration ? (
+                            <span className="text-muted-foreground"> · {s.duration}</span>
+                          ) : null}
+                        </li>
+                      ))}
+                  </ul>
+                </SummaryCard>
+
+                <SummaryCard title="Packages">
+                  <p className="text-muted-foreground">Visibility: {payload.packages.visibility}</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {payload.packages.items.filter((p) => p.name?.trim()).map((p, i) => (
+                      <li key={i}>
+                        {p.name} — {p.price} ({p.billing}){p.recommended ? " ★ recommended" : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </SummaryCard>
+
+                <SummaryCard title="Branding">
+                  <p>
+                    Style: {payload.branding.websiteStyle} · Mood: {payload.branding.mood}
+                  </p>
+                  <p>Colors: {payload.branding.colorsPreferred || "—"}</p>
+                  <p>Avoid: {payload.branding.colorsAvoid || "—"}</p>
+                </SummaryCard>
+
+                <SummaryCard title={`Media (${payload.media.assets.length})`}>
+                  <ul className="text-xs text-muted-foreground">
+                    {payload.media.assets.map((a) => (
+                      <li key={a.id}>
+                        {a.fileName} — {a.assetType}
+                      </li>
+                    ))}
+                    {payload.media.assets.length === 0 ? <li>No files attached</li> : null}
+                  </ul>
+                </SummaryCard>
+
+                <SummaryCard title="AI image direction">
+                  <p>
+                    Generate prompts: {payload.imageDirection.generatePrompts ? "yes" : "no"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Style: {payload.imageDirection.preferredStyle}
+                    {payload.imageDirection.requiredSubjects
+                      ? ` · Subjects: ${payload.imageDirection.requiredSubjects}`
+                      : ""}
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title="Location">
+                  <p>{payload.localBusiness.address || "—"}</p>
+                  <p className="text-muted-foreground">Area: {payload.localBusiness.serviceArea || "—"}</p>
+                  <p className="text-muted-foreground">
+                    {payload.localBusiness.phone || "—"} · {payload.localBusiness.email || "—"}
+                  </p>
+                  <p className="mt-1 text-xs whitespace-pre-line text-muted-foreground">
+                    {payload.localBusiness.openingHours || ""}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    Map: {payload.localBusiness.showMap ? "yes" : "no"} · Hours on site:{" "}
+                    {payload.localBusiness.showHours ? "yes" : "no"}
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title="Trust">
+                  <p className="text-xs">
+                    Experience: {payload.trust.yearsExperience || "—"}
+                    <br />
+                    Guarantees: {payload.trust.guarantees || "—"}
+                    <br />
+                    Testimonials: {payload.trust.testimonials.filter((t) => t.text?.trim()).length} with text
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title="Pages & SEO">
+                  <p>
+                    Structure: {payload.sitePages.structure} — [{payload.sitePages.pages.join(", ")}]
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Keywords: {payload.seo.mainKeyword || "—"}
+                    {payload.seo.secondaryKeywords ? `, ${payload.seo.secondaryKeywords}` : ""}
+                  </p>
+                </SummaryCard>
+
+                <SummaryCard title={`Features (${payload.extraFeatures.length})`}>
+                  <p className="text-xs">{payload.extraFeatures.join(", ") || "—"}</p>
+                </SummaryCard>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button type="button" size="lg" className="rounded-2xl" disabled={loading} onClick={generate}>
                   {loading ? "Generating…" : "Generate website draft"}
@@ -1652,6 +1809,21 @@ export function OnboardingWizard() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function SummaryCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-2 text-foreground">
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary">{title}</p>
+      <div className="space-y-1">{children}</div>
     </div>
   );
 }

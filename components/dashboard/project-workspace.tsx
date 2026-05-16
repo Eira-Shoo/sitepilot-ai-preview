@@ -131,14 +131,14 @@ export function ProjectWorkspace({
         <TabsTrigger value="blueprint" className="rounded-lg">
           Blueprint JSON
         </TabsTrigger>
-        <TabsTrigger value="chat" className="rounded-lg">
-          AI editor
-        </TabsTrigger>
         <TabsTrigger value="media" className="rounded-lg">
           Media
         </TabsTrigger>
         <TabsTrigger value="seo" className="rounded-lg">
           SEO
+        </TabsTrigger>
+        <TabsTrigger value="chat" className="rounded-lg">
+          AI editor
         </TabsTrigger>
         <TabsTrigger value="recs" className="rounded-lg">
           Recommendations

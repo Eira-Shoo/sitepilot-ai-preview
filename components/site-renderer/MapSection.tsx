@@ -6,9 +6,10 @@ type M = Extract<BlueprintSection, { type: "map" }>;
 
 export function MapSection({ section }: { section: M }) {
   const query = section.address || section.placeId;
-  const mapsUrl = query
+  const fallbackMapsUrl = query
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
     : undefined;
+  const externalMapsHref = section.mapsLink?.trim() || fallbackMapsUrl;
   const embedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
   const embedSrc =
     embedKey && section.address
@@ -30,10 +31,16 @@ export function MapSection({ section }: { section: M }) {
               Add an address in your project to show a map module.
             </p>
           )}
+          {section.openingHours?.trim() ? (
+            <div className="mt-4 rounded-xl border border-border/60 bg-card/40 p-4 text-sm">
+              <p className="font-medium text-foreground">Opening hours</p>
+              <p className="mt-2 whitespace-pre-line text-muted-foreground">{section.openingHours}</p>
+            </div>
+          ) : null}
         </div>
-        {mapsUrl ? (
+        {externalMapsHref ? (
           <Button asChild variant="outline" className="rounded-xl">
-            <a href={mapsUrl} target="_blank" rel="noreferrer">
+            <a href={externalMapsHref} target="_blank" rel="noreferrer">
               Open in Google Maps
             </a>
           </Button>
