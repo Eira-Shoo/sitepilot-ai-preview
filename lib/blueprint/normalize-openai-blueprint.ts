@@ -201,6 +201,78 @@ function normalizeRecordValues(obj: unknown): Record<string, string> {
   return out;
 }
 
+function looksLikeMediaItem(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const o = value as Record<string, unknown>;
+  return (
+    "fileName" in o ||
+    "assetType" in o ||
+    "previewDataUrl" in o ||
+    "placement" in o ||
+    "altText" in o ||
+    "id" in o
+  );
+}
+
+function normalizeMediaItem(item: unknown): Record<string, unknown> {
+  if (typeof item === "string") {
+    return {
+      id: "",
+      fileName: item,
+      previewDataUrl: "",
+      assetType: "",
+      placement: [],
+      altText: "",
+      useForAiDirection: false,
+    };
+  }
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return {
+      id: "",
+      fileName: coerceToString(item),
+      previewDataUrl: "",
+      assetType: "",
+      placement: [],
+      altText: "",
+      useForAiDirection: false,
+    };
+  }
+  const o = { ...(item as Record<string, unknown>) };
+  return {
+    id: coerceToString(o.id),
+    fileName: coerceToString(o.fileName ?? o.name),
+    previewDataUrl: coerceToString(o.previewDataUrl ?? o.url ?? o.src),
+    assetType: coerceToString(o.assetType ?? o.type),
+    placement: coerceStringArray(o.placement),
+    altText: coerceToString(o.altText ?? o.alt),
+    useForAiDirection: Boolean(o.useForAiDirection),
+  };
+}
+
+/** OpenAI often returns media as { assets: [...] } instead of a top-level array. */
+function normalizeMediaArray(value: unknown): unknown[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map(normalizeMediaItem);
+
+  if (typeof value !== "object") return [];
+
+  const o = value as Record<string, unknown>;
+  if (Array.isArray(o.assets)) return o.assets.map(normalizeMediaItem);
+  if (Array.isArray(o.items)) return o.items.map(normalizeMediaItem);
+  if (Array.isArray(o.media)) return o.media.map(normalizeMediaItem);
+  if (looksLikeMediaItem(value)) return [normalizeMediaItem(value)];
+
+  const values = Object.values(o);
+  if (
+    values.length > 0 &&
+    values.every((v) => looksLikeMediaItem(v) || typeof v === "string")
+  ) {
+    return values.map(normalizeMediaItem);
+  }
+
+  return [];
+}
+
 /**
  * Fixes common OpenAI JSON shape mistakes before Zod validation.
  */
@@ -299,6 +371,25 @@ export function normalizeOpenAiBlueprintPayload(raw: unknown): unknown {
 
   bp.improvementIdeas = coerceStringArray(bp.improvementIdeas);
   bp.extraFeatures = coerceStringArray(bp.extraFeatures);
+
+  if (bp.media !== undefined) {
+    bp.media = normalizeMediaArray(bp.media);
+  }
+
+  if (Array.isArray(bp.services)) {
+    bp.services = normalizeServiceLikeItems(bp.services);
+  } else if (bp.services && typeof bp.services === "object") {
+    const svc = bp.services as Record<string, unknown>;
+    if (Array.isArray(svc.items)) {
+      bp.services = normalizeServiceLikeItems(svc.items);
+    } else {
+      const values = Object.values(svc);
+      bp.services =
+        values.length > 0 && values.every((v) => v && typeof v === "object")
+          ? normalizeServiceLikeItems(values)
+          : [];
+    }
+  }
 
   if (Array.isArray(bp.pages)) {
     bp.pages = bp.pages.map((page) => {
