@@ -30,6 +30,18 @@ Set these in the Vercel project → **Settings** → **Environment Variables**:
 1. Save variables for **Production** (and Preview if you use preview deployments).
 2. **Redeploy** the project (Deployments → … → Redeploy, or push a new commit).
 
+## Sync from `.env.local` (CLI)
+
+1. Create a token: [vercel.com/account/tokens](https://vercel.com/account/tokens)
+2. In PowerShell (project folder):
+
+```powershell
+$env:VERCEL_TOKEN = "paste_token_here"
+npm run vercel:env
+```
+
+This sets `OPENAI_API_KEY`, `NEXT_PUBLIC_DEMO_MODE=0`, `NEXT_PUBLIC_APP_URL` on Production + Preview and triggers a redeploy.
+
 Env changes do not apply to already-built deployments until you redeploy.
 
 ## Local development

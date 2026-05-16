@@ -1,4 +1,4 @@
-import { isPublicDemoMode } from "@/lib/runtime";
+import { isOfflinePreview, isPublicDemoMode } from "@/lib/runtime";
 import { openAiKeySuffix, resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
 
@@ -56,9 +56,14 @@ export function logGenerationConfigOnce(): void {
 }
 
 export function getPublicGenerationStatus() {
+  const demoMode = isPublicDemoMode();
+  const openaiKeyDetected = hasResolvedOpenAiKey();
   return {
-    demoMode: isPublicDemoMode(),
-    openaiKeyDetected: hasResolvedOpenAiKey(),
+    /** NEXT_PUBLIC_DEMO_MODE=1 — forces mock generation only */
+    demoMode,
+    /** No Supabase URL/anon — preview deploy; does NOT block OpenAI when demo is off */
+    offlinePreview: isOfflinePreview(),
+    openaiKeyDetected,
     keySuffix: openAiKeySuffix(),
     configState: getGenerationConfigState(),
     expectedSource: getExpectedGenerationSource(),
