@@ -1,11 +1,12 @@
 /**
- * One-command local dev: stop stale Next servers, clear .next, start fresh.
- * Use: npm run dev:clean
+ * Reliable local dev: kill stale servers, wipe .next (incl. mixed prod/dev cache), start fresh.
+ * npm run dev  → always uses this script
  */
 import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const port = process.env.PORT ?? "3001";
@@ -24,8 +25,8 @@ async function killPort(p) {
     await run("powershell", [
       "-NoProfile",
       "-Command",
-      `$c = Get-NetTCPConnection -LocalPort ${p} -ErrorAction SilentlyContinue; ` +
-        `if ($c) { $c | Select-Object -ExpandProperty OwningProcess -Unique | ` +
+      `$conns = Get-NetTCPConnection -LocalPort ${p} -ErrorAction SilentlyContinue; ` +
+        `if ($conns) { $conns | Select-Object -ExpandProperty OwningProcess -Unique | ` +
         `ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } }`,
     ]);
     return;
@@ -33,18 +34,22 @@ async function killPort(p) {
   await run("sh", ["-c", `lsof -ti:${p} | xargs kill -9 2>/dev/null || true`]);
 }
 
-async function main() {
-  console.log("[dev:clean] Stopping stale dev servers on ports", ports.join(", "));
-  for (const p of ports) await killPort(p);
-
+function wipeNextCache() {
   const nextDir = join(root, ".next");
-  if (existsSync(nextDir)) {
-    console.log("[dev:clean] Removing .next cache");
-    rmSync(nextDir, { recursive: true, force: true });
-  }
+  if (!existsSync(nextDir)) return;
+  console.log("[dev] Removing .next (avoids broken CSS after npm run build)");
+  rmSync(nextDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+}
 
-  console.log(`[dev:clean] Starting Next.js → http://localhost:${port}`);
-  console.log("[dev:clean] Keep this terminal open. Use Ctrl+C to stop.\n");
+async function main() {
+  console.log("[dev] Stopping stale servers on ports", ports.join(", "));
+  for (const p of ports) await killPort(p);
+  await delay(1500);
+
+  wipeNextCache();
+
+  console.log(`[dev] Starting Next.js → http://localhost:${port}`);
+  console.log("[dev] Keep this terminal open. Do NOT run npm run build in another window.\n");
 
   const nextBin = join(root, "node_modules", "next", "dist", "bin", "next");
   const child = spawn(process.execPath, [nextBin, "dev", "-p", port], {
@@ -57,6 +62,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[dev:clean] Failed:", err);
+  console.error("[dev] Failed:", err);
   process.exit(1);
 });

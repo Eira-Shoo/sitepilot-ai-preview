@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "node scripts/dev-clean.mjs",
+    "dev:fast": "next dev -p 3001",
     "dev:clean": "node scripts/dev-clean.mjs",
+    "dev:stable": "node scripts/dev-stable.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
