@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import { defaultOnboardingPayload, onboardingSchema } from "@/lib/validators/onboarding";
-import { toggleArrayValue } from "@/lib/onboarding/branding-helpers";
+import { coerceStringArray, toggleArrayValue } from "@/lib/onboarding/branding-helpers";
 import type { GenerationApiFailure } from "@/lib/ai/generation-api-response";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { saveDemoDraft } from "@/lib/demo-session";
@@ -50,6 +50,23 @@ function styleChipClass(selected: boolean) {
     : "border-border/60 bg-muted/30 text-muted-foreground hover:border-primary/40";
 }
 
+function ensureBrandingArrays(payload: OnboardingPayload): OnboardingPayload {
+  const b = payload.branding as OnboardingPayload["branding"] & {
+    websiteStyle?: string;
+    mood?: string;
+  };
+  return {
+    ...payload,
+    branding: {
+      ...b,
+      preferredWebsiteStyle: coerceStringArray(
+        b.preferredWebsiteStyle ?? b.websiteStyle,
+      ),
+      websiteMood: coerceStringArray(b.websiteMood ?? b.mood),
+    },
+  };
+}
+
 function newId() {
   return globalThis.crypto?.randomUUID?.() ?? `m-${Math.random().toString(36).slice(2)}`;
 }
@@ -73,7 +90,9 @@ export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [payload, setPayload] = useState<OnboardingPayload>(() => defaultOnboardingPayload());
+  const [payload, setPayload] = useState<OnboardingPayload>(() =>
+    ensureBrandingArrays(defaultOnboardingPayload()),
+  );
   const [lastGenerationSource, setLastGenerationSource] =
     useState<BlueprintGenerationSource | null>(null);
   const [lastGenerationError, setLastGenerationError] = useState<GenerationApiFailure | null>(
@@ -94,7 +113,7 @@ export function OnboardingWizard() {
         },
       });
       setStep(parsed.step ?? 1);
-      if (merged.success) setPayload(merged.data);
+      if (merged.success) setPayload(ensureBrandingArrays(merged.data));
     } catch {
       /* ignore */
     }
@@ -208,7 +227,6 @@ export function OnboardingWizard() {
       };
 
       if (res.status === 401) {
-        setLoading(false);
         toast.message("Log in to save your draft", { description: "Redirecting…" });
         router.push(`/login?next=${encodeURIComponent("/create")}`);
         return;
@@ -259,7 +277,7 @@ export function OnboardingWizard() {
 
   function resetAll() {
     localStorage.removeItem(STORAGE_KEY);
-    setPayload(defaultOnboardingPayload());
+    setPayload(ensureBrandingArrays(defaultOnboardingPayload()));
     setStep(1);
     toast.success("Wizard reset");
   }
@@ -972,9 +990,9 @@ export function OnboardingWizard() {
                       onClick={() =>
                         setPayload((p) => ({ ...p, branding: { ...p.branding, fontStyle: f } }))
                       }
-                      className={`rounded-full border px-3 py-1 text-xs capitalize ${
-                        payload.branding.fontStyle === f ? "border-primary bg-primary/10" : "border-border/60"
-                      }`}
+                      className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs capitalize ${styleChipClass(
+                        payload.branding.fontStyle === f,
+                      )}`}
                     >
                       {f}
                     </button>
