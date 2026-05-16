@@ -1,12 +1,28 @@
-/** Coerce LLM output (often nested objects) into plain strings. */
-export function coerceToString(value: unknown, fallback = ""): string {
+const MAX_COERCE_DEPTH = 12;
+
+/** Coerce LLM output (often nested or circular objects) into plain strings. */
+export function coerceToString(
+  value: unknown,
+  fallback = "",
+  seen?: WeakSet<object>,
+  depth = 0,
+): string {
   if (value == null) return fallback;
+  if (depth > MAX_COERCE_DEPTH) return fallback;
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return value.map((v) => coerceToString(v)).filter(Boolean).join(", ");
+    return value
+      .map((v) => coerceToString(v, "", seen, depth + 1))
+      .filter(Boolean)
+      .join(", ");
   }
   if (typeof value === "object") {
+    const obj = value as object;
+    const visited = seen ?? new WeakSet<object>();
+    if (visited.has(obj)) return fallback;
+    visited.add(obj);
+
     const o = value as Record<string, unknown>;
     const candidate =
       o.text ??
@@ -19,7 +35,9 @@ export function coerceToString(value: unknown, fallback = ""): string {
       o.primary ??
       o.main ??
       o.content;
-    if (candidate != null) return coerceToString(candidate, fallback);
+    if (candidate != null && candidate !== value) {
+      return coerceToString(candidate, fallback, visited, depth + 1);
+    }
   }
   return fallback;
 }

@@ -45,10 +45,23 @@ function safeString(value: unknown, maxLen = 500): string {
 }
 
 function readMessage(error: unknown): string {
-  if (typeof error === "string") return error.slice(0, 500);
-  if (typeof error !== "object" || error === null) return "";
-  const msg = (error as { message?: unknown }).message;
-  return typeof msg === "string" ? msg.slice(0, 500) : "";
+  try {
+    if (typeof error === "string") return error.slice(0, 500);
+    if (OpenAiGenerationError.isInstance(error)) {
+      return error.plainMessage;
+    }
+    if (typeof error !== "object" || error === null) return "";
+    if (error instanceof RangeError) {
+      return "Maximum call stack size exceeded";
+    }
+    const own = Object.getOwnPropertyDescriptor(error, "message");
+    if (own && typeof own.value === "string") {
+      return own.value.slice(0, 500);
+    }
+  } catch {
+    /* avoid getters / cause chains that recurse */
+  }
+  return "";
 }
 
 /** Extract primitive error fields only — never walks cause chains or circular objects. */
@@ -62,11 +75,11 @@ export function toSafeErrorInfo(error: unknown): SafeErrorInfo {
     if (OpenAiGenerationError.isInstance(error)) {
       const info: SafeErrorInfo = {
         name: error.name,
-        message: error.message,
+        message: error.plainMessage,
         code: error.code,
         status: error.statusCode,
       };
-      if (process.env.NODE_ENV === "development" && error.stack) {
+      if (process.env.NODE_ENV === "development" && typeof error.stack === "string") {
         info.stack = error.stack.slice(0, 2000);
       }
       return info;
@@ -111,6 +124,7 @@ export function toSafeErrorInfo(error: unknown): SafeErrorInfo {
 }
 
 export class OpenAiGenerationError extends Error {
+  readonly plainMessage: string;
   readonly statusCode: number;
   readonly code: string;
   readonly details?: string;
@@ -120,6 +134,7 @@ export class OpenAiGenerationError extends Error {
     options?: { statusCode?: number; code?: string; details?: string },
   ) {
     super(message);
+    this.plainMessage = message;
     this.name = "OpenAiGenerationError";
     this.statusCode = options?.statusCode ?? 502;
     this.code = options?.code ?? "openai_generation_failed";
@@ -150,6 +165,23 @@ function normalizeOpenAiFailure(error: unknown): OpenAiGenerationError {
     }
 
     const safe = toSafeErrorInfo(error);
+
+    if (
+      safe.message.includes("Maximum call stack") ||
+      error instanceof RangeError
+    ) {
+      return new OpenAiGenerationError(
+        "OpenAI response could not be processed (nested data). Please try again.",
+        {
+          statusCode: 502,
+          code: "openai_response_processing_failed",
+          details:
+            process.env.NODE_ENV === "development"
+              ? "Maximum call stack size exceeded"
+              : undefined,
+        },
+      );
+    }
 
     if (isOpenAiAuthError(safe)) {
       const suffix = openAiKeySuffix();
