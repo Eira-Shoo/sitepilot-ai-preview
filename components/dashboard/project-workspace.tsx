@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WebsiteRenderer } from "@/components/site-renderer/WebsiteRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,11 +28,15 @@ export function ProjectWorkspace({
   initialBlueprint,
   status,
   publishedSlug,
+  onBlueprintUpdate,
+  isDemoPreview = false,
 }: {
   projectId: string;
   initialBlueprint: WebsiteBlueprint | null;
   status: string;
   publishedSlug: string | null;
+  onBlueprintUpdate?: (blueprint: WebsiteBlueprint) => void;
+  isDemoPreview?: boolean;
 }) {
   const parsed = useMemo(() => {
     if (!initialBlueprint) return null;
@@ -45,7 +49,20 @@ export function ProjectWorkspace({
   const [busy, setBusy] = useState(false);
   const [recommendations, setRecommendations] = useState<Rec[] | null>(null);
 
+  useEffect(() => {
+    if (parsed) setBlueprint(parsed);
+  }, [parsed]);
+
+  function updateBlueprint(next: WebsiteBlueprint) {
+    setBlueprint(next);
+    onBlueprintUpdate?.(next);
+  }
+
   async function runCheckout(packageType: "starter" | "business" | "growth") {
+    if (isDemoPreview) {
+      toast.message("Checkout is disabled in demo preview.");
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch("/api/stripe/create-checkout-session", {
@@ -79,7 +96,7 @@ export function ProjectWorkspace({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed");
-      setBlueprint(json.blueprint as WebsiteBlueprint);
+      updateBlueprint(json.blueprint as WebsiteBlueprint);
       setInstruction("");
       toast.success("Blueprint updated");
     } catch (e) {
@@ -151,16 +168,25 @@ export function ProjectWorkspace({
       <TabsContent value="preview" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
-            Status: <span className="text-foreground">{status}</span>
-            {publishedSlug ? (
+            {isDemoPreview ? (
               <>
-                {" "}
-                · Live:{" "}
-                <a className="text-primary hover:underline" href={`/site/${publishedSlug}`}>
-                  /site/{publishedSlug}
-                </a>
+                <span className="font-medium text-foreground">{blueprint.business.name}</span>
+                {" · Demo draft (saved in this browser only)"}
               </>
-            ) : null}
+            ) : (
+              <>
+                Status: <span className="text-foreground">{status}</span>
+                {publishedSlug ? (
+                  <>
+                    {" "}
+                    · Live:{" "}
+                    <a className="text-primary hover:underline" href={`/site/${publishedSlug}`}>
+                      /site/{publishedSlug}
+                    </a>
+                  </>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
         <div className="overflow-hidden rounded-3xl border border-border/60 bg-background shadow-xl">
@@ -289,16 +315,24 @@ export function ProjectWorkspace({
 
       <TabsContent value="packages">
         <Card className="rounded-2xl border-border/60 bg-card/80">
-          <CardContent className="grid gap-3 p-6 sm:grid-cols-3">
-            <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("starter")}>
-              Starter — 99 €
-            </Button>
-            <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("business")}>
-              Business — 299 €
-            </Button>
-            <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("growth")}>
-              Growth — 49 €/mo
-            </Button>
+          <CardContent className="space-y-3 p-6">
+            {isDemoPreview ? (
+              <p className="text-sm text-muted-foreground">
+                Stripe checkout is disabled in demo preview. Connect billing later when you go live.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("starter")}>
+                  Starter — 99 €
+                </Button>
+                <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("business")}>
+                  Business — 299 €
+                </Button>
+                <Button disabled={busy} className="rounded-xl" onClick={() => runCheckout("growth")}>
+                  Growth — 49 €/mo
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </TabsContent>

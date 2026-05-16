@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import { defaultOnboardingPayload } from "@/lib/validators/onboarding";
+import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import { saveDemoBlueprint } from "@/lib/demo-session";
 import { toast } from "sonner";
 import {
   AUDIENCE_FEEL_TAGS,
@@ -77,6 +79,10 @@ export function OnboardingWizard() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, payload }));
   }, [step, payload]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   const progress = useMemo(() => Math.round((step / TOTAL_STEPS) * 100), [step]);
 
@@ -158,7 +164,8 @@ export function OnboardingWizard() {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as { error?: string }).error ?? "Failed");
       }
-      const json = (await res.json()) as { projectId: string };
+      const json = (await res.json()) as { projectId: string; blueprint?: WebsiteBlueprint };
+      if (json.blueprint) saveDemoBlueprint(json.blueprint);
       localStorage.removeItem(STORAGE_KEY);
       toast.success("Draft ready");
       router.push(`/dashboard/projects/${json.projectId}`);
@@ -260,7 +267,8 @@ export function OnboardingWizard() {
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-xs text-muted-foreground">
-            Not sure? Leave it empty — AI can suggest a draft.
+            Fields marked with <span className="text-foreground">*</span> are required on step 1. Other steps can be
+            skipped when optional.
           </p>
 
           {step === 1 && (
@@ -311,7 +319,7 @@ export function OnboardingWizard() {
                       onClick={() =>
                         setPayload((p) => ({ ...p, basics: { ...p.basics, businessType: t } }))
                       }
-                      className={`rounded-full border px-3 py-1 text-xs ${
+                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                         payload.basics.businessType === t
                           ? "border-primary bg-primary/10"
                           : "border-border/60"
@@ -452,7 +460,7 @@ export function OnboardingWizard() {
                           mainGoal: { ...p.mainGoal, preferredContact: c },
                         }))
                       }
-                      className={`rounded-full border px-3 py-1 text-xs ${
+                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                         payload.mainGoal.preferredContact === c
                           ? "border-primary bg-primary/10"
                           : "border-border/60"
@@ -523,7 +531,7 @@ export function OnboardingWizard() {
                             },
                           }))
                         }
-                        className={`rounded-full border px-3 py-1 text-xs ${
+                        className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                           on ? "border-primary bg-primary/10" : "border-border/60"
                         }`}
                       >
@@ -823,7 +831,7 @@ export function OnboardingWizard() {
                       onClick={() =>
                         setPayload((p) => ({ ...p, branding: { ...p.branding, websiteStyle: s } }))
                       }
-                      className={`rounded-full border px-3 py-1 text-xs ${
+                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                         payload.branding.websiteStyle === s ? "border-primary bg-primary/10" : "border-border/60"
                       }`}
                     >
@@ -879,7 +887,7 @@ export function OnboardingWizard() {
                       key={m}
                       type="button"
                       onClick={() => setPayload((p) => ({ ...p, branding: { ...p.branding, mood: m } }))}
-                      className={`rounded-full border px-3 py-1 text-xs ${
+                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                         payload.branding.mood === m ? "border-primary bg-primary/10" : "border-border/60"
                       }`}
                     >
@@ -1062,7 +1070,7 @@ export function OnboardingWizard() {
                           imageDirection: { ...p.imageDirection, preferredStyle: s },
                         }))
                       }
-                      className={`rounded-full border px-3 py-1 text-xs ${
+                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                         payload.imageDirection.preferredStyle === s
                           ? "border-primary bg-primary/10"
                           : "border-border/60"
@@ -1464,7 +1472,7 @@ export function OnboardingWizard() {
                             },
                           }))
                         }
-                        className={`rounded-full border px-3 py-1 text-xs ${
+                        className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
                           on ? "border-primary bg-primary/10" : "border-border/60"
                         }`}
                       >
@@ -1750,7 +1758,13 @@ export function OnboardingWizard() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="lg" className="rounded-2xl" disabled={loading} onClick={generate}>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="cursor-pointer rounded-2xl shadow-md"
+                  disabled={loading}
+                  onClick={generate}
+                >
                   {loading ? "Generating…" : "Generate website draft"}
                 </Button>
                 <Button type="button" variant="outline" className="rounded-2xl" onClick={saveDraft}>
@@ -1767,7 +1781,7 @@ export function OnboardingWizard() {
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl"
+              className="min-w-[5.5rem] cursor-pointer rounded-xl"
               disabled={step === 1}
               onClick={() => setStep((s) => Math.max(1, s - 1))}
             >
@@ -1787,7 +1801,7 @@ export function OnboardingWizard() {
               {step < TOTAL_STEPS ? (
                 <Button
                   type="button"
-                  className="rounded-xl"
+                  className="min-w-[5.5rem] cursor-pointer rounded-xl"
                   onClick={() => {
                     if (step === 1) {
                       if (!payload.basics.businessName.trim()) {

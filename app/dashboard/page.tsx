@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { hasSupabaseCredentials, isPublicDemoMode } from "@/lib/runtime";
-import { DEMO_PROJECT_ID } from "@/lib/demo-project";
-
+import { DemoDashboardProjectCard } from "@/components/dashboard/demo-dashboard-project-card";
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
@@ -21,27 +20,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="rounded-2xl border-border/60 bg-card/80">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div>
-                <CardTitle>Northline Beauty Studio (sample)</CardTitle>
-                <p className="text-xs text-muted-foreground">Offline blueprint</p>
-              </div>
-              <Badge variant="muted" className="rounded-full">
-                preview
-              </Badge>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button asChild size="sm" className="rounded-xl">
-                <Link href={`/dashboard/projects/${DEMO_PROJECT_ID}`}>Open</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="rounded-xl">
-                <Link href="/site/demo" target="_blank">
-                  Public /site/demo
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <DemoDashboardProjectCard />
         </div>
       </div>
     );
@@ -107,29 +86,9 @@ export default async function DashboardPage() {
           </Card>
         ))}
         {showSampleProject ? (
-          <Card className="rounded-2xl border-border/60 bg-card/80 md:col-span-2">
-            <CardHeader className="flex flex-row items-start justify-between gap-3">
-              <div>
-                <CardTitle>Northline Beauty Studio (Demo)</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Sample blueprint — no live API calls while NEXT_PUBLIC_DEMO_MODE=1
-                </p>
-              </div>
-              <Badge variant="muted" className="rounded-full">
-                demo
-              </Badge>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button asChild size="sm" className="rounded-xl">
-                <Link href={`/dashboard/projects/${DEMO_PROJECT_ID}`}>Open</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline" className="rounded-xl">
-                <Link href="/site/demo" target="_blank">
-                  Public /site/demo
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="md:col-span-2">
+            <DemoDashboardProjectCard />
+          </div>
         ) : null}
         {!projects?.length && !showSampleProject ? (
           <Card className="rounded-2xl border-dashed border-border/60 bg-card/40 md:col-span-2">

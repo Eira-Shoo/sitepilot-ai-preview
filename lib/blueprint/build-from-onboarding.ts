@@ -7,12 +7,19 @@ function hasFeature(extra: string[], label: string) {
 }
 
 function inferColors(style: string, preferred: string) {
+  const combined = `${style} ${preferred}`.toLowerCase();
   const p = preferred.toLowerCase();
   if (p.includes("#")) {
     const m = p.match(/#[0-9a-fA-F]{3,8}/g);
     if (m?.length) {
       return { primary: m[0], secondary: m[1] ?? "#8b5cf6" };
     }
+  }
+  if (
+    combined.includes("gold") &&
+    (combined.includes("black") || combined.includes("dark") || combined.includes("white"))
+  ) {
+    return { primary: "#0a0a0a", secondary: "#c9a227" };
   }
   if (style.toLowerCase().includes("luxury") || style.toLowerCase().includes("premium")) {
     return { primary: "#0f172a", secondary: "#c4a962" };

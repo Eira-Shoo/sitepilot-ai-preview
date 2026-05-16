@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectWorkspace } from "@/components/dashboard/project-workspace";
+import { DemoProjectShell } from "@/components/dashboard/demo-project-shell";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { hasSupabaseCredentials } from "@/lib/runtime";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
-import { demoBlueprint } from "@/lib/demo-blueprint";
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,15 +15,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Project editor</h1>
           <p className="text-sm text-muted-foreground">
-            Sample blueprint (preview). Connect Supabase to save real customer projects.
+            Preview your generated draft in this browser. Connect Supabase to save projects across devices.
           </p>
         </div>
-        <ProjectWorkspace
-          projectId={DEMO_PROJECT_ID}
-          initialBlueprint={demoBlueprint}
-          status="preview"
-          publishedSlug={null}
-        />
+        <DemoProjectShell projectId={DEMO_PROJECT_ID} status="preview" publishedSlug={null} />
       </div>
     );
   }

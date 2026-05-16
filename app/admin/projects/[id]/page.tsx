@@ -4,11 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WebsiteRenderer } from "@/components/site-renderer/WebsiteRenderer";
+import { DemoBlueprintPreview } from "@/components/dashboard/demo-blueprint-preview";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
 import { approveProject, markProjectPaid, publishProject } from "./actions";
 import { hasSupabaseCredentials } from "@/lib/runtime";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
-import { demoBlueprint } from "@/lib/demo-blueprint";
 
 export default async function AdminProjectPage({
   params,
@@ -18,36 +18,29 @@ export default async function AdminProjectPage({
   const { id } = await params;
 
   if (!hasSupabaseCredentials() || id === DEMO_PROJECT_ID) {
-    const parsed = websiteBlueprintSchema.safeParse(demoBlueprint);
-    const blueprint = parsed.success ? parsed.data : null;
     return (
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-10 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase text-muted-foreground">Admin (preview)</p>
-            <h1 className="text-3xl font-semibold tracking-tight">Sample project</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Demo project</h1>
             <p className="text-sm text-muted-foreground">
-              Actions are disabled until Supabase is configured. This is a static blueprint preview.
+              Actions are disabled until Supabase is configured. Preview uses your last generated draft
+              from the builder when available.
             </p>
           </div>
           <Button asChild variant="outline" className="rounded-xl">
             <Link href="/admin">All projects</Link>
           </Button>
         </div>
-        {blueprint ? (
-          <Card className="rounded-2xl border-border/60 bg-card/80">
-            <CardHeader>
-              <CardTitle>Live preview</CardTitle>
-            </CardHeader>
-            <CardContent className="overflow-hidden rounded-2xl border border-border/60">
-              <WebsiteRenderer
-                blueprint={blueprint}
-                projectId={DEMO_PROJECT_ID}
-                showContactForm={false}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
+        <Card className="rounded-2xl border-border/60 bg-card/80">
+          <CardHeader>
+            <CardTitle>Live preview</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-hidden rounded-2xl border border-border/60">
+            <DemoBlueprintPreview projectId={DEMO_PROJECT_ID} showContactForm={false} />
+          </CardContent>
+        </Card>
       </div>
     );
   }
