@@ -5,8 +5,7 @@ import { generateBlueprintFromOnboarding } from "@/lib/openai/blueprint";
 import { onboardingSchema } from "@/lib/validators/onboarding";
 import { rateLimit } from "@/lib/rate-limit";
 import { isDemoDeploy } from "@/lib/runtime";
-import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { demoBlueprint } from "@/lib/demo-blueprint";
+import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 
 const bodySchema = z.object({
@@ -28,7 +27,7 @@ export async function POST(request: Request) {
   }
 
   if (isDemoDeploy()) {
-    const blueprint = parseWebsiteBlueprint(demoBlueprint);
+    const blueprint = buildWebsiteBlueprintFromOnboarding(parsed.data.onboarding);
     return NextResponse.json({ blueprint, projectId: DEMO_PROJECT_ID });
   }
 
@@ -68,7 +67,7 @@ export async function POST(request: Request) {
       await supabase.from("project_inputs").insert({
         project_id: projectId,
         form_data: onboarding,
-        google_place_data: onboarding.maps.placeDetails ?? null,
+        google_place_data: onboarding.localBusiness.placeDetails ?? null,
       });
       return NextResponse.json({ blueprint, projectId });
     }
@@ -91,7 +90,7 @@ export async function POST(request: Request) {
     await supabase.from("project_inputs").insert({
       project_id: project.id,
       form_data: onboarding,
-      google_place_data: onboarding.maps.placeDetails ?? null,
+      google_place_data: onboarding.localBusiness.placeDetails ?? null,
     });
 
     return NextResponse.json({ blueprint, projectId: project.id });

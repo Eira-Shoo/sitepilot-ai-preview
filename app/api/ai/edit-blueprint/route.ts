@@ -5,6 +5,7 @@ import { editBlueprintWithInstruction } from "@/lib/openai/blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
 import { rateLimit } from "@/lib/rate-limit";
 import { isDemoDeploy } from "@/lib/runtime";
+import { mockEditBlueprint } from "@/lib/blueprint/mock-edit-blueprint";
 
 const bodySchema = z.object({
   projectId: z.string().uuid(),
@@ -31,7 +32,8 @@ export async function POST(request: Request) {
   }
 
   if (isDemoDeploy()) {
-    return NextResponse.json({ blueprint: current.data });
+    const updated = mockEditBlueprint(current.data, parsed.data.instruction);
+    return NextResponse.json({ blueprint: updated });
   }
 
   const supabase = await createClient();

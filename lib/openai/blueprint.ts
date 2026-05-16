@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { onboardingSchema } from "@/lib/validators/onboarding";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import {
   buildBlueprintSystemPrompt,
@@ -7,6 +8,8 @@ import {
   buildRecommendationsPrompt,
 } from "@/lib/ai/prompts";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { mockEditBlueprint } from "@/lib/blueprint/mock-edit-blueprint";
 
 function getClient() {
   const key = process.env.OPENAI_API_KEY;
@@ -17,6 +20,15 @@ function getClient() {
 export async function generateBlueprintFromOnboarding(
   onboarding: unknown,
 ): Promise<WebsiteBlueprint> {
+  const parsedOnboarding = onboardingSchema.safeParse(onboarding);
+  if (!parsedOnboarding.success) {
+    throw new Error("Invalid onboarding payload");
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return buildWebsiteBlueprintFromOnboarding(parsedOnboarding.data);
+  }
+
   const openai = getClient();
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -24,7 +36,7 @@ export async function generateBlueprintFromOnboarding(
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: buildBlueprintSystemPrompt() },
-      { role: "user", content: buildBlueprintUserPayload(onboarding) },
+      { role: "user", content: buildBlueprintUserPayload(parsedOnboarding.data) },
     ],
   });
   const raw = completion.choices[0]?.message?.content;
@@ -42,6 +54,10 @@ export async function editBlueprintWithInstruction(
   blueprint: WebsiteBlueprint,
   instruction: string,
 ): Promise<WebsiteBlueprint> {
+  if (!process.env.OPENAI_API_KEY) {
+    return mockEditBlueprint(blueprint, instruction);
+  }
+
   const openai = getClient();
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",

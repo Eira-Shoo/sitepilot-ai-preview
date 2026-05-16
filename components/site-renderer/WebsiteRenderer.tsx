@@ -13,6 +13,7 @@ import { ProcessSection } from "./ProcessSection";
 import { CTASection } from "./CTASection";
 import { FooterSection } from "./FooterSection";
 import { Navbar } from "./Navbar";
+import { VideoSection } from "./VideoSection";
 
 type Props = {
   blueprint: WebsiteBlueprint;
@@ -38,6 +39,10 @@ export function WebsiteRenderer({
   const hasNavbar = home.sections.some((s) => s.type === "navbar");
   const hasFooter = home.sections.some((s) => s.type === "footer");
 
+  const logoFromMedia = blueprint.media?.find(
+    (m) => m.assetType?.toLowerCase() === "logo" && m.previewDataUrl,
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground" style={style}>
       {!hasNavbar && (
@@ -45,6 +50,7 @@ export function WebsiteRenderer({
           section={{
             type: "navbar",
             logoText: blueprint.business.name,
+            logoUrl: logoFromMedia?.previewDataUrl ?? "",
             links: [
               { label: "Services", href: "#services" },
               { label: "Contact", href: "#contact" },
@@ -100,6 +106,8 @@ export function WebsiteRenderer({
             );
           case "cta":
             return <CTASection key={`${section.type}-${idx}`} section={section} />;
+          case "video":
+            return <VideoSection key={`${section.type}-${idx}`} section={section} />;
           case "footer":
             return <FooterSection key={`${section.type}-${idx}`} section={section} />;
           default:

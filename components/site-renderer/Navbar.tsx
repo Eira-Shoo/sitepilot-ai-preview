@@ -14,8 +14,12 @@ export function Navbar({ section }: { section: N }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-        <Link href="#" className="text-lg font-semibold tracking-tight">
-          {section.logoText}
+        <Link href="#" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+          {section.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={section.logoUrl} alt="" className="h-9 w-auto max-w-[160px] object-contain" />
+          ) : null}
+          <span>{section.logoText}</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
           {section.links.map((l: NavLink) => (

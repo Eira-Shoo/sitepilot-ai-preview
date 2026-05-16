@@ -9,6 +9,9 @@ type ServiceItem = {
   price: string;
   duration: string;
   cta: string;
+  whoFor?: string;
+  included?: string;
+  imageUrl?: string;
 };
 
 export function ServicesSection({ section }: { section: Services }) {
@@ -19,12 +22,16 @@ export function ServicesSection({ section }: { section: Services }) {
       </div>
       <div className="mt-10 grid gap-6 md:grid-cols-2">
         {section.items.map((item: ServiceItem, i: number) => (
-          <Card key={i} className="rounded-2xl border-border/60 bg-card/70">
+          <Card key={i} className="overflow-hidden rounded-2xl border-border/60 bg-card/70">
+            {item.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.imageUrl} alt="" className="h-44 w-full object-cover" />
+            ) : null}
             <CardHeader>
               <CardTitle className="text-xl">{item.name}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">{item.description}</p>
+              <p className="whitespace-pre-line text-sm text-muted-foreground">{item.description}</p>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 {item.price ? (
                   <span className="rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">

@@ -6,6 +6,9 @@ const serviceItemSchema = z.object({
   price: z.string().optional().default(""),
   duration: z.string().optional().default(""),
   cta: z.string().optional().default(""),
+  whoFor: z.string().optional().default(""),
+  included: z.string().optional().default(""),
+  imageUrl: z.string().optional().default(""),
 });
 
 const faqItemSchema = z.object({
@@ -22,6 +25,7 @@ const testimonialItemSchema = z.object({
 const galleryItemSchema = z.object({
   imagePrompt: z.string().optional().default(""),
   caption: z.string().optional().default(""),
+  imageUrl: z.string().optional().default(""),
 });
 
 function normalizeServiceItems(
@@ -30,12 +34,40 @@ function normalizeServiceItems(
   if (!Array.isArray(items)) return [];
   return items.map((item) => {
     if (typeof item === "string") {
-      return { name: item, description: "", price: "", duration: "", cta: "" };
+      return {
+        name: item,
+        description: "",
+        price: "",
+        duration: "",
+        cta: "",
+        whoFor: "",
+        included: "",
+        imageUrl: "",
+      };
     }
     const parsed = serviceItemSchema.safeParse(item);
     return parsed.success
       ? parsed.data
-      : { name: "", description: "", price: "", duration: "", cta: "" };
+      : {
+          name: "",
+          description: "",
+          price: "",
+          duration: "",
+          cta: "",
+          whoFor: "",
+          included: "",
+          imageUrl: "",
+        };
+  });
+}
+
+function normalizeGalleryItems(items: unknown): z.infer<typeof galleryItemSchema>[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    const parsed = galleryItemSchema.safeParse(item);
+    return parsed.success
+      ? parsed.data
+      : { imagePrompt: "", caption: "", imageUrl: "" };
   });
 }
 
@@ -46,6 +78,7 @@ const heroSectionSchema = z.object({
   primaryCta: z.string().optional().default(""),
   secondaryCta: z.string().optional().default(""),
   imagePrompt: z.string().optional().default(""),
+  imageUrl: z.string().optional().default(""),
 });
 
 const servicesSectionSchema = z
@@ -101,11 +134,16 @@ const pricingSectionSchema = z
     items: normalizeServiceItems(s.items),
   }));
 
-const gallerySectionSchema = z.object({
-  type: z.literal("gallery"),
-  headline: z.string().optional().default(""),
-  items: z.array(galleryItemSchema).optional().default([]),
-});
+const gallerySectionSchema = z
+  .object({
+    type: z.literal("gallery"),
+    headline: z.string().optional().default(""),
+    items: z.array(z.unknown()).optional().default([]),
+  })
+  .transform((s) => ({
+    ...s,
+    items: normalizeGalleryItems(s.items),
+  }));
 
 const beforeAfterSectionSchema = z.object({
   type: z.literal("before_after"),
@@ -136,6 +174,14 @@ const ctaSectionSchema = z.object({
   body: z.string().optional().default(""),
   primaryCta: z.string().optional().default(""),
   secondaryCta: z.string().optional().default(""),
+  imageUrl: z.string().optional().default(""),
+});
+
+const videoSectionSchema = z.object({
+  type: z.literal("video"),
+  headline: z.string().optional().default(""),
+  videoUrl: z.string().optional().default(""),
+  description: z.string().optional().default(""),
 });
 
 const footerSectionSchema = z.object({
@@ -155,6 +201,7 @@ const footerSectionSchema = z.object({
 const navbarSectionSchema = z.object({
   type: z.literal("navbar"),
   logoText: z.string().optional().default(""),
+  logoUrl: z.string().optional().default(""),
   links: z
     .array(
       z.object({
@@ -176,6 +223,7 @@ const passthroughSection = z
       body: "",
       primaryCta: String((raw as { primaryCta?: string }).primaryCta ?? ""),
       secondaryCta: "",
+      imageUrl: "",
     }),
   );
 
@@ -195,6 +243,7 @@ function parseSection(raw: unknown) {
     before_after: beforeAfterSectionSchema,
     process: processSectionSchema,
     cta: ctaSectionSchema,
+    video: videoSectionSchema,
     footer: footerSectionSchema,
     navbar: navbarSectionSchema,
   };
@@ -210,6 +259,70 @@ const pageSchema = z.object({
   slug: z.string(),
   title: z.string().optional().default(""),
   sections: z.array(z.unknown()).transform((sections) => sections.map(parseSection)),
+});
+
+const imagePromptObjectSchema = z.object({
+  section: z.string().optional().default(""),
+  prompt: z.string(),
+  purpose: z.string().optional().default(""),
+  style: z.string().optional().default(""),
+});
+
+const goalsSchema = z.object({
+  primary: z.string().optional().default(""),
+  primaryCta: z.string().optional().default(""),
+  secondaryCta: z.string().optional().default(""),
+  preferredContact: z.string().optional().default(""),
+});
+
+const targetAudienceSchema = z.object({
+  who: z.string().optional().default(""),
+  problems: z.string().optional().default(""),
+  careAbout: z.string().optional().default(""),
+  feelTags: z.array(z.string()).optional().default([]),
+});
+
+const mediaItemSchema = z.object({
+  id: z.string().optional().default(""),
+  fileName: z.string().optional().default(""),
+  previewDataUrl: z.string().optional().default(""),
+  assetType: z.string().optional().default(""),
+  placement: z.array(z.string()).optional().default([]),
+  altText: z.string().optional().default(""),
+  useForAiDirection: z.boolean().optional().default(false),
+});
+
+const packagesMetaSchema = z.object({
+  visibility: z.string().optional().default(""),
+  items: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+});
+
+const trustMetaSchema = z.object({
+  yearsExperience: z.string().optional().default(""),
+  certifications: z.string().optional().default(""),
+  awards: z.string().optional().default(""),
+  guarantees: z.string().optional().default(""),
+  paymentMethods: z.string().optional().default(""),
+  reviewPlatforms: z.record(z.string(), z.string()).optional().default({}),
+  hideEmptyReviews: z.boolean().optional().default(true),
+});
+
+const localBusinessMetaSchema = z.object({
+  address: z.string().optional().default(""),
+  serviceArea: z.string().optional().default(""),
+  phone: z.string().optional().default(""),
+  email: z.string().optional().default(""),
+  openingHours: z.string().optional().default(""),
+  mapsLink: z.string().optional().default(""),
+  placeId: z.string().optional().default(""),
+  showMap: z.boolean().optional().default(true),
+  showHours: z.boolean().optional().default(true),
+  showLocalTrust: z.boolean().optional().default(true),
+});
+
+const sitePagesPlanSchema = z.object({
+  structure: z.string().optional().default("one-page"),
+  pages: z.array(z.string()).optional().default([]),
 });
 
 export const websiteBlueprintSchema = z.object({
@@ -240,8 +353,62 @@ export const websiteBlueprintSchema = z.object({
     secondaryCta: z.string().optional().default(""),
     trackingEvents: z.array(z.string()).optional().default([]),
   }),
-  imagePrompts: z.array(z.string()).optional().default([]),
+  imagePrompts: z
+    .array(z.union([z.string(), imagePromptObjectSchema]))
+    .optional()
+    .default([])
+    .transform((arr) =>
+      arr.map((item) =>
+        typeof item === "string"
+          ? { section: "", prompt: item, purpose: "", style: "" }
+          : {
+              section: item.section ?? "",
+              prompt: item.prompt,
+              purpose: item.purpose ?? "",
+              style: item.style ?? "",
+            },
+      ),
+    ),
   improvementIdeas: z.array(z.string()).optional().default([]),
+  goals: goalsSchema.optional().default({
+    primary: "",
+    primaryCta: "",
+    secondaryCta: "",
+    preferredContact: "",
+  }),
+  targetAudience: targetAudienceSchema.optional().default({
+    who: "",
+    problems: "",
+    careAbout: "",
+    feelTags: [],
+  }),
+  services: z.array(z.record(z.string(), z.unknown())).optional().default([]),
+  packages: packagesMetaSchema.optional().default({ visibility: "", items: [] }),
+  media: z.array(mediaItemSchema).optional().default([]),
+  localBusiness: localBusinessMetaSchema.optional().default({
+    address: "",
+    serviceArea: "",
+    phone: "",
+    email: "",
+    openingHours: "",
+    mapsLink: "",
+    placeId: "",
+    showMap: true,
+    showHours: true,
+    showLocalTrust: true,
+  }),
+  trust: trustMetaSchema.optional().default({
+    yearsExperience: "",
+    certifications: "",
+    awards: "",
+    guarantees: "",
+    paymentMethods: "",
+    reviewPlatforms: {},
+    hideEmptyReviews: true,
+  }),
+  /** Requested site structure from intake (not the rendered routing model). */
+  pagesPlan: sitePagesPlanSchema.optional().default({ structure: "one-page", pages: [] }),
+  extraFeatures: z.array(z.string()).optional().default([]),
 });
 
 export type WebsiteBlueprint = z.infer<typeof websiteBlueprintSchema>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,93 +9,58 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
+import { defaultOnboardingPayload } from "@/lib/validators/onboarding";
 import { toast } from "sonner";
+import {
+  AUDIENCE_FEEL_TAGS,
+  BUSINESS_TYPES,
+  CONTACT_METHODS,
+  EXTRA_FEATURES,
+  IMAGE_STYLE_PRESETS,
+  PACKAGE_BILLING,
+  PAGE_OPTIONS,
+  PRICING_VISIBILITY,
+  WEBSITE_GOALS,
+  WEBSITE_MOODS,
+  WEBSITE_STYLES,
+  FONT_STYLES,
+  ASSET_TYPES,
+  ASSET_PLACEMENTS,
+} from "@/lib/intake/options";
 
-const STORAGE_KEY = "sitepilot_onboarding_v1";
+const STORAGE_KEY = "sitepilot_onboarding_v2";
+const TOTAL_STEPS = 14;
 
-const goals = [
-  "Get more calls",
-  "Get more bookings",
-  "Sell a product",
-  "Collect leads",
-  "Present services",
-  "Build trust",
-  "Promote coaching",
-  "Promote courses",
-  "Promote local business",
-];
+const IS_DEMO_CLIENT =
+  process.env.NEXT_PUBLIC_DEMO_MODE === "1" ||
+  process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-const websiteTypes = [
-  "Landing page",
-  "5-page business website",
-  "Portfolio",
-  "Mini-shop",
-  "Coaching website",
-  "Restaurant website",
-  "Local service website",
-];
+const OPTIONAL_STEPS = new Set([7, 8, 9, 12]);
 
-const styles = [
-  "Minimal",
-  "Premium",
-  "Bold",
-  "Friendly",
-  "Luxury",
-  "Tech",
-  "Playful",
-  "Dark mode",
-  "Clean white",
-  "Modern gradient",
-];
+function newId() {
+  return globalThis.crypto?.randomUUID?.() ?? `m-${Math.random().toString(36).slice(2)}`;
+}
 
-const emptyService = {
-  name: "",
-  description: "",
-  price: "",
-  duration: "",
-  cta: "",
-};
+const MAX_FILE_BYTES = 2_500_000;
+
+async function fileToDataUrl(file: File): Promise<string | null> {
+  if (file.size > MAX_FILE_BYTES) {
+    toast.error("File too large for preview (max ~2.5 MB).");
+    return null;
+  }
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
 
 export function OnboardingWizard() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [payload, setPayload] = useState<OnboardingPayload>(() => ({
-    basics: {
-      businessName: "",
-      industry: "",
-      description: "",
-      country: "",
-      city: "",
-      language: "en",
-      websiteUrl: "",
-    },
-    maps: {
-      placeQuery: "",
-      placeId: "",
-      address: "",
-      phone: "",
-      email: "",
-      openingHours: "",
-      serviceArea: "",
-      placeDetails: undefined,
-    },
-    goal: goals[0],
-    websiteType: websiteTypes[0],
-    style: {
-      preset: styles[1],
-      colors: "Electric blue + violet accents",
-      generateImageSuggestions: true,
-    },
-    services: [{ ...emptyService }],
-    audience: {
-      who: "",
-      painPoints: "",
-      whyChoose: "",
-      competitors: "",
-      offers: "",
-    },
-  }));
+  const [payload, setPayload] = useState<OnboardingPayload>(() => defaultOnboardingPayload());
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -113,24 +78,42 @@ export function OnboardingWizard() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, payload }));
   }, [step, payload]);
 
-  const progress = useMemo(() => Math.round((step / 8) * 100), [step]);
+  const progress = useMemo(() => Math.round((step / TOTAL_STEPS) * 100), [step]);
+
+  const suggest = useCallback((path: string, value: string) => {
+    toast.message("AI draft suggestion applied");
+    setPayload((p) => {
+      const next = structuredClone(p) as Record<string, unknown>;
+      const keys = path.split(".");
+      let cur: Record<string, unknown> = next;
+      for (let i = 0; i < keys.length - 1; i++) {
+        cur = cur[keys[i]!] as Record<string, unknown>;
+      }
+      cur[keys[keys.length - 1]!] = value;
+      return next as OnboardingPayload;
+    });
+  }, []);
 
   async function searchPlaces() {
-    if (!payload.maps.placeQuery.trim()) {
+    if (IS_DEMO_CLIENT) {
+      toast.message("Google search is disabled in demo mode — enter details manually.");
+      return;
+    }
+    if (!payload.localBusiness.placeQuery.trim()) {
       toast.error("Enter a business name or address to search.");
       return;
     }
     const res = await fetch("/api/google/place-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: payload.maps.placeQuery }),
+      body: JSON.stringify({ query: payload.localBusiness.placeQuery }),
     });
     const data = (await res.json()) as {
       results?: { place_id: string; name: string; formatted_address?: string }[];
     };
     const first = data.results?.[0];
     if (!first) {
-      toast.message("No results — you can still enter details manually.");
+      toast.message("No results — enter details manually.");
       return;
     }
     const detailsRes = await fetch("/api/google/place-details", {
@@ -142,12 +125,12 @@ export function OnboardingWizard() {
     const details = detailsJson.result as Record<string, unknown> | undefined;
     setPayload((p) => ({
       ...p,
-      maps: {
-        ...p.maps,
+      localBusiness: {
+        ...p.localBusiness,
         placeId: first.place_id,
-        address: String(details?.formatted_address ?? first.formatted_address ?? ""),
-        phone: String(details?.formatted_phone_number ?? p.maps.phone),
-        placeDetails: details ?? null,
+        address: String(details?.formatted_address ?? first.formatted_address ?? p.localBusiness.address),
+        phone: String(details?.formatted_phone_number ?? p.localBusiness.phone),
+        placeDetails: details ?? undefined,
       },
       basics: {
         ...p.basics,
@@ -173,7 +156,7 @@ export function OnboardingWizard() {
       }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed");
+        throw new Error((err as { error?: string }).error ?? "Failed");
       }
       const json = (await res.json()) as { projectId: string };
       localStorage.removeItem(STORAGE_KEY);
@@ -182,9 +165,55 @@ export function OnboardingWizard() {
       router.refresh();
     } catch (e) {
       console.error(e);
-      toast.error("Could not generate. Check API keys and try again.");
+      toast.error("Could not generate. Try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function resetAll() {
+    localStorage.removeItem(STORAGE_KEY);
+    setPayload(defaultOnboardingPayload());
+    setStep(1);
+    toast.success("Wizard reset");
+  }
+
+  function saveDraft() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, payload }));
+    toast.success("Draft saved in this browser");
+  }
+
+  function duplicateService(idx: number) {
+    setPayload((p) => {
+      const copy = structuredClone(p.offers.services[idx]!);
+      const next = [...p.offers.services];
+      next.splice(idx + 1, 0, copy);
+      return { ...p, offers: { ...p.offers, services: next } };
+    });
+  }
+
+  async function onPickFiles(files: FileList | null) {
+    if (!files?.length) return;
+    for (const file of Array.from(files)) {
+      const dataUrl = await fileToDataUrl(file);
+      if (!dataUrl) continue;
+      setPayload((p) => ({
+        ...p,
+        media: {
+          assets: [
+            ...p.media.assets,
+            {
+              id: newId(),
+              fileName: file.name,
+              previewDataUrl: dataUrl,
+              assetType: "other",
+              placement: [],
+              altText: "",
+              useForAiDirection: true,
+            },
+          ],
+        },
+      }));
     }
   }
 
@@ -192,34 +221,51 @@ export function OnboardingWizard() {
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">AI builder</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Create your website</h1>
+          <p className="text-sm font-semibold uppercase tracking-wide text-primary">AI intake</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Website questionnaire</h1>
           <p className="text-sm text-muted-foreground">
-            Step {step} of 8 · {progress}% complete
+            Step {step} of {TOTAL_STEPS} · {progress}%
           </p>
         </div>
         <Badge variant="muted" className="rounded-full">
-          JSON blueprint · safe renderer
+          Autosaved locally
         </Badge>
       </div>
 
-      <Card className="mt-8 rounded-2xl border-border/60 bg-card/80">
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      <Card className="mt-6 rounded-2xl border-border/60 bg-card/80">
         <CardHeader>
           <CardTitle>
-            {step === 1 && "Business basics"}
-            {step === 2 && "Google Business / Maps"}
-            {step === 3 && "Business goal"}
-            {step === 4 && "Website type"}
-            {step === 5 && "Style"}
-            {step === 6 && "Services & pricing"}
-            {step === 7 && "Target audience"}
-            {step === 8 && "Generate draft"}
+            {step === 1 && "1 · Business basics"}
+            {step === 2 && "2 · Main website goal"}
+            {step === 3 && "3 · Target audience"}
+            {step === 4 && "4 · Services / offers"}
+            {step === 5 && "5 · Packages & pricing display"}
+            {step === 6 && "6 · Branding & design"}
+            {step === 7 && "7 · Media uploads"}
+            {step === 8 && "8 · AI image direction"}
+            {step === 9 && "9 · Location & contact"}
+            {step === 10 && "10 · Trust & credibility"}
+            {step === 11 && "11 · Site structure"}
+            {step === 12 && "12 · SEO keywords"}
+            {step === 13 && "13 · Extra features"}
+            {step === 14 && "14 · Review & generate"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <p className="text-xs text-muted-foreground">
+            Not sure? Leave it empty — AI can suggest a draft.
+          </p>
+
           {step === 1 && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Business name">
+            <StepGrid>
+              <Field label="Business name *">
                 <Input
                   value={payload.basics.businessName}
                   onChange={(e) =>
@@ -230,16 +276,51 @@ export function OnboardingWizard() {
                   }
                 />
               </Field>
-              <Field label="Industry">
-                <Input
-                  value={payload.basics.industry}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      basics: { ...p.basics, industry: e.target.value },
-                    }))
-                  }
-                />
+              <Field label="Industry *">
+                <div className="flex gap-2">
+                  <Input
+                    value={payload.basics.industry}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        basics: { ...p.basics, industry: e.target.value },
+                      }))
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0 rounded-xl"
+                    onClick={() =>
+                      suggest(
+                        "basics.industry",
+                        "Professional services — consulting & implementation support",
+                      )
+                    }
+                  >
+                    AI suggest
+                  </Button>
+                </div>
+              </Field>
+              <Field label="Business type" className="md:col-span-2">
+                <div className="flex flex-wrap gap-2">
+                  {BUSINESS_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({ ...p, basics: { ...p.basics, businessType: t } }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payload.basics.businessType === t
+                          ? "border-primary bg-primary/10"
+                          : "border-border/60"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </Field>
               <Field label="Short description" className="md:col-span-2">
                 <Textarea
@@ -257,10 +338,7 @@ export function OnboardingWizard() {
                 <Input
                   value={payload.basics.country}
                   onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      basics: { ...p.basics, country: e.target.value },
-                    }))
+                    setPayload((p) => ({ ...p, basics: { ...p.basics, country: e.target.value } }))
                   }
                 />
               </Field>
@@ -294,191 +372,173 @@ export function OnboardingWizard() {
                   }
                 />
               </Field>
-            </div>
+              <Field label="Social links" className="md:col-span-2">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    ["instagram", "tiktok", "youtube", "facebook", "linkedin"] as const
+                  ).map((k) => (
+                    <Input
+                      key={k}
+                      placeholder={k}
+                      value={payload.basics.social[k]}
+                      onChange={(e) =>
+                        setPayload((p) => ({
+                          ...p,
+                          basics: {
+                            ...p.basics,
+                            social: { ...p.basics.social, [k]: e.target.value },
+                          },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </Field>
+            </StepGrid>
           )}
 
           {step === 2 && (
             <div className="space-y-4">
-              <Field label="Search on Google Maps">
-                <div className="flex gap-2">
-                  <Input
-                    value={payload.maps.placeQuery}
-                    onChange={(e) =>
-                      setPayload((p) => ({
-                        ...p,
-                        maps: { ...p.maps, placeQuery: e.target.value },
-                      }))
-                    }
-                    placeholder="Business name + city"
-                  />
-                  <Button type="button" variant="secondary" onClick={searchPlaces}>
-                    Search
-                  </Button>
-                </div>
-              </Field>
-              <Field label="Place ID (optional)">
-                <Input
-                  value={payload.maps.placeId}
-                  onChange={(e) =>
-                    setPayload((p) => ({ ...p, maps: { ...p.maps, placeId: e.target.value } }))
-                  }
-                />
-              </Field>
-              <Field label="Address (manual)">
-                <Input
-                  value={payload.maps.address}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      maps: { ...p.maps, address: e.target.value },
-                    }))
-                  }
-                />
-              </Field>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Phone">
-                  <Input
-                    value={payload.maps.phone}
-                    onChange={(e) =>
-                      setPayload((p) => ({
-                        ...p,
-                        maps: { ...p.maps, phone: e.target.value },
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Email">
-                  <Input
-                    value={payload.maps.email}
-                    onChange={(e) =>
-                      setPayload((p) => ({
-                        ...p,
-                        maps: { ...p.maps, email: e.target.value },
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
-              <Field label="Opening hours">
-                <Textarea
-                  rows={3}
-                  value={payload.maps.openingHours}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      maps: { ...p.maps, openingHours: e.target.value },
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Service area">
-                <Input
-                  value={payload.maps.serviceArea}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      maps: { ...p.maps, serviceArea: e.target.value },
-                    }))
-                  }
-                />
-              </Field>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="grid gap-2 md:grid-cols-2">
-              {goals.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setPayload((p) => ({ ...p, goal: g }))}
-                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                    payload.goal === g
-                      ? "border-primary bg-primary/10"
-                      : "border-border/60 bg-card/40 hover:border-primary/40"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="grid gap-2 md:grid-cols-2">
-              {websiteTypes.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setPayload((p) => ({ ...p, websiteType: g }))}
-                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                    payload.websiteType === g
-                      ? "border-primary bg-primary/10"
-                      : "border-border/60 bg-card/40 hover:border-primary/40"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="space-y-4">
+              <p className="text-sm font-medium">What should this website mainly achieve?</p>
               <div className="grid gap-2 md:grid-cols-2">
-                {styles.map((g) => (
+                {WEBSITE_GOALS.map((g) => (
                   <button
                     key={g}
                     type="button"
-                    onClick={() =>
-                      setPayload((p) => ({
-                        ...p,
-                        style: { ...p.style, preset: g },
-                      }))
-                    }
+                    onClick={() => setPayload((p) => ({ ...p, mainGoal: { ...p.mainGoal, primary: g } }))}
                     className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                      payload.style.preset === g
+                      payload.mainGoal.primary === g
                         ? "border-primary bg-primary/10"
-                        : "border-border/60 bg-card/40 hover:border-primary/40"
+                        : "border-border/60 bg-card/40"
                     }`}
                   >
                     {g}
                   </button>
                 ))}
               </div>
-              <Field label="Preferred colors">
-                <Input
-                  value={payload.style.colors}
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Primary CTA text">
+                  <Input
+                    value={payload.mainGoal.primaryCta}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        mainGoal: { ...p.mainGoal, primaryCta: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Secondary CTA text">
+                  <Input
+                    value={payload.mainGoal.secondaryCta}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        mainGoal: { ...p.mainGoal, secondaryCta: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label="Preferred contact method">
+                <div className="flex flex-wrap gap-2">
+                  {CONTACT_METHODS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({
+                          ...p,
+                          mainGoal: { ...p.mainGoal, preferredContact: c },
+                        }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payload.mainGoal.preferredContact === c
+                          ? "border-primary bg-primary/10"
+                          : "border-border/60"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <Field label="Who should visit this website?">
+                <Textarea
+                  rows={3}
+                  value={payload.targetAudience.who}
                   onChange={(e) =>
                     setPayload((p) => ({
                       ...p,
-                      style: { ...p.style, colors: e.target.value },
+                      targetAudience: { ...p.targetAudience, who: e.target.value },
                     }))
                   }
                 />
               </Field>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={payload.style.generateImageSuggestions}
+              <Field label="What problems do they have?">
+                <Textarea
+                  rows={3}
+                  value={payload.targetAudience.problems}
                   onChange={(e) =>
                     setPayload((p) => ({
                       ...p,
-                      style: { ...p.style, generateImageSuggestions: e.target.checked },
+                      targetAudience: { ...p.targetAudience, problems: e.target.value },
                     }))
                   }
                 />
-                Generate image suggestions with AI
-              </label>
-              <p className="text-xs text-muted-foreground">
-                Logo/image uploads can be wired to Supabase Storage in your deployment.
-              </p>
+              </Field>
+              <Field label="What do they care about before buying?">
+                <Textarea
+                  rows={3}
+                  value={payload.targetAudience.careAbout}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      targetAudience: { ...p.targetAudience, careAbout: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Feel / vibe (pick any)">
+                <div className="flex flex-wrap gap-2">
+                  {AUDIENCE_FEEL_TAGS.map((t) => {
+                    const on = payload.targetAudience.feelTags.includes(t);
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            targetAudience: {
+                              ...p.targetAudience,
+                              feelTags: on
+                                ? p.targetAudience.feelTags.filter((x) => x !== t)
+                                : [...p.targetAudience.feelTags, t],
+                            },
+                          }))
+                        }
+                        className={`rounded-full border px-3 py-1 text-xs ${
+                          on ? "border-primary bg-primary/10" : "border-border/60"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
             </div>
           )}
 
-          {step === 6 && (
+          {step === 4 && (
             <div className="space-y-4">
-              {payload.services.map((svc, idx) => (
+              {payload.offers.services.map((svc, idx) => (
                 <div
                   key={idx}
                   className="grid gap-3 rounded-2xl border border-border/60 bg-background/40 p-4 md:grid-cols-2"
@@ -487,52 +547,102 @@ export function OnboardingWizard() {
                     <Input
                       value={svc.name}
                       onChange={(e) => {
-                        const next = [...payload.services];
+                        const next = [...payload.offers.services];
                         next[idx] = { ...svc, name: e.target.value };
-                        setPayload((p) => ({ ...p, services: next }));
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
                       }}
                     />
                   </Field>
-                  <Field label="Price">
+                  <Field label="Starting price">
                     <Input
-                      value={svc.price}
+                      value={svc.startingPrice}
                       onChange={(e) => {
-                        const next = [...payload.services];
-                        next[idx] = { ...svc, price: e.target.value };
-                        setPayload((p) => ({ ...p, services: next }));
+                        const next = [...payload.offers.services];
+                        next[idx] = { ...svc, startingPrice: e.target.value };
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
                       }}
                     />
                   </Field>
                   <Field label="Description" className="md:col-span-2">
                     <Textarea
-                      rows={3}
+                      rows={2}
                       value={svc.description}
                       onChange={(e) => {
-                        const next = [...payload.services];
+                        const next = [...payload.offers.services];
                         next[idx] = { ...svc, description: e.target.value };
-                        setPayload((p) => ({ ...p, services: next }));
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
                       }}
                     />
                   </Field>
-                  <Field label="Duration">
+                  <Field label="Duration (optional)">
                     <Input
                       value={svc.duration}
                       onChange={(e) => {
-                        const next = [...payload.services];
+                        const next = [...payload.offers.services];
                         next[idx] = { ...svc, duration: e.target.value };
-                        setPayload((p) => ({ ...p, services: next }));
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
                       }}
                     />
                   </Field>
-                  <Field label="CTA text">
+                  <Field label="Who is it for?">
                     <Input
-                      value={svc.cta}
+                      value={svc.whoFor}
                       onChange={(e) => {
-                        const next = [...payload.services];
-                        next[idx] = { ...svc, cta: e.target.value };
-                        setPayload((p) => ({ ...p, services: next }));
+                        const next = [...payload.offers.services];
+                        next[idx] = { ...svc, whoFor: e.target.value };
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
                       }}
                     />
+                  </Field>
+                  <Field label="What is included?" className="md:col-span-2">
+                    <Textarea
+                      rows={2}
+                      value={svc.included}
+                      onChange={(e) => {
+                        const next = [...payload.offers.services];
+                        next[idx] = { ...svc, included: e.target.value };
+                        setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
+                      }}
+                    />
+                  </Field>
+                  <Field label="CTA text" className="md:col-span-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        value={svc.cta}
+                        onChange={(e) => {
+                          const next = [...payload.offers.services];
+                          next[idx] = { ...svc, cta: e.target.value };
+                          setPayload((p) => ({ ...p, offers: { ...p.offers, services: next } }));
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl"
+                        onClick={() => duplicateService(idx)}
+                      >
+                        Duplicate
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl"
+                        disabled={payload.offers.services.length < 2}
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            offers: {
+                              ...p.offers,
+                              services: p.offers.services.filter((_, i) => i !== idx),
+                            },
+                          }))
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </Field>
                 </div>
               ))}
@@ -541,7 +651,24 @@ export function OnboardingWizard() {
                 variant="outline"
                 className="rounded-xl"
                 onClick={() =>
-                  setPayload((p) => ({ ...p, services: [...p.services, { ...emptyService }] }))
+                  setPayload((p) => ({
+                    ...p,
+                    offers: {
+                      ...p.offers,
+                      services: [
+                        ...p.offers.services,
+                        {
+                          name: "",
+                          description: "",
+                          startingPrice: "",
+                          duration: "",
+                          whoFor: "",
+                          included: "",
+                          cta: "Learn more",
+                        },
+                      ],
+                    },
+                  }))
                 }
               >
                 Add service
@@ -549,95 +676,937 @@ export function OnboardingWizard() {
             </div>
           )}
 
-          {step === 7 && (
-            <div className="grid gap-4">
-              <Field label="Who should buy?">
-                <Textarea
-                  rows={3}
-                  value={payload.audience.who}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      audience: { ...p.audience, who: e.target.value },
-                    }))
-                  }
-                />
+          {step === 5 && (
+            <div className="space-y-4">
+              <Field label="Do you want pricing visible on the website?">
+                <div className="grid gap-2 md:grid-cols-2">
+                  {PRICING_VISIBILITY.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setPayload((p) => ({ ...p, packages: { ...p.packages, visibility: v } }))}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm ${
+                        payload.packages.visibility === v ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </Field>
-              <Field label="Main pain points">
-                <Textarea
-                  rows={3}
-                  value={payload.audience.painPoints}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      audience: { ...p.audience, painPoints: e.target.value },
-                    }))
-                  }
-                />
+              {(payload.packages.visibility.startsWith("Yes") ||
+                payload.packages.visibility.includes("AI")) && (
+                <>
+                  <p className="text-sm text-muted-foreground">Package cards</p>
+                  {payload.packages.items.map((pkg, idx) => (
+                    <div
+                      key={idx}
+                      className="grid gap-3 rounded-2xl border border-border/60 p-4 md:grid-cols-2"
+                    >
+                      <Field label="Package name">
+                        <Input
+                          value={pkg.name}
+                          onChange={(e) => {
+                            const next = [...payload.packages.items];
+                            next[idx] = { ...pkg, name: e.target.value };
+                            setPayload((p) => ({ ...p, packages: { ...p.packages, items: next } }));
+                          }}
+                        />
+                      </Field>
+                      <Field label="Price">
+                        <Input
+                          value={pkg.price}
+                          onChange={(e) => {
+                            const next = [...payload.packages.items];
+                            next[idx] = { ...pkg, price: e.target.value };
+                            setPayload((p) => ({ ...p, packages: { ...p.packages, items: next } }));
+                          }}
+                        />
+                      </Field>
+                      <Field label="Billing type">
+                        <select
+                          className="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                          value={pkg.billing}
+                          onChange={(e) => {
+                            const next = [...payload.packages.items];
+                            next[idx] = { ...pkg, billing: e.target.value };
+                            setPayload((p) => ({ ...p, packages: { ...p.packages, items: next } }));
+                          }}
+                        >
+                          {PACKAGE_BILLING.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={pkg.recommended}
+                          onChange={(e) => {
+                            const next = [...payload.packages.items];
+                            next[idx] = { ...pkg, recommended: e.target.checked };
+                            setPayload((p) => ({ ...p, packages: { ...p.packages, items: next } }));
+                          }}
+                        />
+                        Recommended package
+                      </label>
+                      <Field label="Features included" className="md:col-span-2">
+                        <Textarea
+                          rows={2}
+                          value={pkg.features}
+                          onChange={(e) => {
+                            const next = [...payload.packages.items];
+                            next[idx] = { ...pkg, features: e.target.value };
+                            setPayload((p) => ({ ...p, packages: { ...p.packages, items: next } }));
+                          }}
+                        />
+                      </Field>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl md:col-span-2"
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            packages: {
+                              ...p.packages,
+                              items: p.packages.items.filter((_, i) => i !== idx),
+                            },
+                          }))
+                        }
+                      >
+                        Remove package
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() =>
+                      setPayload((p) => ({
+                        ...p,
+                        packages: {
+                          ...p.packages,
+                          items: [
+                            ...p.packages.items,
+                            {
+                              name: "",
+                              price: "",
+                              billing: "one-time",
+                              features: "",
+                              recommended: false,
+                            },
+                          ],
+                        },
+                      }))
+                    }
+                  >
+                    Add package
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {step === 6 && (
+            <StepGrid>
+              <Field label="Preferred website style" className="md:col-span-2">
+                <div className="flex flex-wrap gap-2">
+                  {WEBSITE_STYLES.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({ ...p, branding: { ...p.branding, websiteStyle: s } }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payload.branding.websiteStyle === s ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </Field>
-              <Field label="Why choose this business?">
-                <Textarea
-                  rows={3}
-                  value={payload.audience.whyChoose}
-                  onChange={(e) =>
-                    setPayload((p) => ({
-                      ...p,
-                      audience: { ...p.audience, whyChoose: e.target.value },
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Competitors (optional)">
+              <Field label="Preferred colors">
                 <Input
-                  value={payload.audience.competitors}
+                  value={payload.branding.colorsPreferred}
                   onChange={(e) =>
                     setPayload((p) => ({
                       ...p,
-                      audience: { ...p.audience, competitors: e.target.value },
+                      branding: { ...p.branding, colorsPreferred: e.target.value },
                     }))
                   }
                 />
               </Field>
-              <Field label="Special offers">
+              <Field label="Colors to avoid">
+                <Input
+                  value={payload.branding.colorsAvoid}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      branding: { ...p.branding, colorsAvoid: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Font style">
+                <div className="flex flex-wrap gap-2">
+                  {FONT_STYLES.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({ ...p, branding: { ...p.branding, fontStyle: f } }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-xs capitalize ${
+                        payload.branding.fontStyle === f ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Website mood">
+                <div className="flex flex-wrap gap-2">
+                  {WEBSITE_MOODS.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setPayload((p) => ({ ...p, branding: { ...p.branding, mood: m } }))}
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payload.branding.mood === m ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Inspiration URLs (optional)" className="md:col-span-2">
                 <Textarea
                   rows={2}
-                  value={payload.audience.offers}
+                  value={payload.branding.inspirationUrls}
                   onChange={(e) =>
                     setPayload((p) => ({
                       ...p,
-                      audience: { ...p.audience, offers: e.target.value },
+                      branding: { ...p.branding, inspirationUrls: e.target.value },
                     }))
                   }
                 />
               </Field>
+              <Field label="What you like / dislike" className="md:col-span-2">
+                <Textarea
+                  rows={3}
+                  value={payload.branding.notes}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, branding: { ...p.branding, notes: e.target.value } }))
+                  }
+                />
+              </Field>
+            </StepGrid>
+          )}
+
+          {step === 7 && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Demo preview only — images stay in your browser until you generate. Large files may not persist
+                after refresh.
+              </p>
+              <Input
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                onChange={(e) => onPickFiles(e.target.files)}
+              />
+              {payload.media.assets.map((asset, idx) => (
+                <div key={asset.id} className="space-y-3 rounded-2xl border border-border/60 p-4">
+                  <div className="flex flex-wrap items-start gap-4">
+                    {asset.previewDataUrl?.startsWith("data:image") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={asset.previewDataUrl}
+                        alt=""
+                        className="h-20 w-20 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-muted text-xs">
+                        file
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 text-sm">
+                      <p className="truncate font-medium">{asset.fileName}</p>
+                      <p className="text-xs text-muted-foreground">{asset.assetType}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() =>
+                        setPayload((p) => ({
+                          ...p,
+                          media: {
+                            assets: p.media.assets.filter((_, i) => i !== idx),
+                          },
+                        }))
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="Asset type">
+                      <select
+                        className="flex h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                        value={asset.assetType}
+                        onChange={(e) => {
+                          const next = [...payload.media.assets];
+                          next[idx] = { ...asset, assetType: e.target.value };
+                          setPayload((p) => ({ ...p, media: { assets: next } }));
+                        }}
+                      >
+                        {ASSET_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Alt text / description">
+                      <Input
+                        value={asset.altText}
+                        onChange={(e) => {
+                          const next = [...payload.media.assets];
+                          next[idx] = { ...asset, altText: e.target.value };
+                          setPayload((p) => ({ ...p, media: { assets: next } }));
+                        }}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Where should it appear?">
+                    <div className="flex flex-wrap gap-2">
+                      {ASSET_PLACEMENTS.map((pl) => {
+                        const on = asset.placement.includes(pl);
+                        return (
+                          <button
+                            key={pl}
+                            type="button"
+                            onClick={() => {
+                              const next = [...payload.media.assets];
+                              next[idx] = {
+                                ...asset,
+                                placement: on
+                                  ? asset.placement.filter((x) => x !== pl)
+                                  : [...asset.placement, pl],
+                              };
+                              setPayload((p) => ({ ...p, media: { assets: next } }));
+                            }}
+                            className={`rounded-full border px-3 py-1 text-xs capitalize ${
+                              on ? "border-primary bg-primary/10" : "border-border/60"
+                            }`}
+                          >
+                            {pl}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={asset.useForAiDirection}
+                      onChange={(e) => {
+                        const next = [...payload.media.assets];
+                        next[idx] = { ...asset, useForAiDirection: e.target.checked };
+                        setPayload((p) => ({ ...p, media: { assets: next } }));
+                      }}
+                    />
+                    Use as visual direction for AI
+                  </label>
+                </div>
+              ))}
             </div>
           )}
 
           {step === 8 && (
-            <div className="space-y-4 text-sm text-muted-foreground">
-              <p>
-                We will call OpenAI to produce a validated JSON blueprint. Nothing executes as arbitrary
-                frontend code — your preview renders through SitePilot components.
+            <div className="space-y-4">
+              <p className="text-sm font-medium">Should AI suggest image ideas if you do not have enough images?</p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={payload.imageDirection.generatePrompts}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      imageDirection: { ...p.imageDirection, generatePrompts: e.target.checked },
+                    }))
+                  }
+                />
+                Generate image prompts
+              </label>
+              <Field label="Preferred image style">
+                <div className="flex flex-wrap gap-2">
+                  {IMAGE_STYLE_PRESETS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({
+                          ...p,
+                          imageDirection: { ...p.imageDirection, preferredStyle: s },
+                        }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-xs ${
+                        payload.imageDirection.preferredStyle === s
+                          ? "border-primary bg-primary/10"
+                          : "border-border/60"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Things to avoid in images">
+                <Textarea
+                  rows={2}
+                  value={payload.imageDirection.avoid}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      imageDirection: { ...p.imageDirection, avoid: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Required image subjects">
+                <Textarea
+                  rows={2}
+                  value={payload.imageDirection.requiredSubjects}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      imageDirection: { ...p.imageDirection, requiredSubjects: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+            </div>
+          )}
+
+          {step === 9 && (
+            <div className="space-y-4">
+              {!IS_DEMO_CLIENT && (
+                <Field label="Search on Google Maps">
+                  <div className="flex gap-2">
+                    <Input
+                      value={payload.localBusiness.placeQuery}
+                      onChange={(e) =>
+                        setPayload((p) => ({
+                          ...p,
+                          localBusiness: { ...p.localBusiness, placeQuery: e.target.value },
+                        }))
+                      }
+                      placeholder="Business name + city"
+                    />
+                    <Button type="button" variant="secondary" className="rounded-xl" onClick={searchPlaces}>
+                      Search
+                    </Button>
+                  </div>
+                </Field>
+              )}
+              <Field label="Business address">
+                <Input
+                  value={payload.localBusiness.address}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      localBusiness: { ...p.localBusiness, address: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Service area">
+                <Input
+                  value={payload.localBusiness.serviceArea}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      localBusiness: { ...p.localBusiness, serviceArea: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Phone">
+                  <Input
+                    value={payload.localBusiness.phone}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        localBusiness: { ...p.localBusiness, phone: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Email">
+                  <Input
+                    value={payload.localBusiness.email}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        localBusiness: { ...p.localBusiness, email: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label="Opening hours">
+                <Textarea
+                  rows={3}
+                  value={payload.localBusiness.openingHours}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      localBusiness: { ...p.localBusiness, openingHours: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Google Maps link (optional)">
+                <Input
+                  value={payload.localBusiness.mapsLink}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      localBusiness: { ...p.localBusiness, mapsLink: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Google Place ID (optional)">
+                <Input
+                  value={payload.localBusiness.placeId}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      localBusiness: { ...p.localBusiness, placeId: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={payload.localBusiness.showMap}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        localBusiness: { ...p.localBusiness, showMap: e.target.checked },
+                      }))
+                    }
+                  />
+                  Show map on website
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={payload.localBusiness.showHours}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        localBusiness: { ...p.localBusiness, showHours: e.target.checked },
+                      }))
+                    }
+                  />
+                  Show opening hours
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={payload.localBusiness.showLocalTrust}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        localBusiness: { ...p.localBusiness, showLocalTrust: e.target.checked },
+                      }))
+                    }
+                  />
+                  Show local trust section
+                </label>
+              </div>
+            </div>
+          )}
+
+          {step === 10 && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Years of experience">
+                  <Input
+                    value={payload.trust.yearsExperience}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        trust: { ...p.trust, yearsExperience: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Payment methods">
+                  <Input
+                    value={payload.trust.paymentMethods}
+                    onChange={(e) =>
+                      setPayload((p) => ({
+                        ...p,
+                        trust: { ...p.trust, paymentMethods: e.target.value },
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              <Field label="Certifications">
+                <Textarea
+                  rows={2}
+                  value={payload.trust.certifications}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, trust: { ...p.trust, certifications: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Awards">
+                <Textarea
+                  rows={2}
+                  value={payload.trust.awards}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, trust: { ...p.trust, awards: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Guarantees">
+                <Textarea
+                  rows={2}
+                  value={payload.trust.guarantees}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, trust: { ...p.trust, guarantees: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Review platform links">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ["google", "Google"],
+                      ["trustpilot", "Trustpilot"],
+                      ["provenExpert", "ProvenExpert"],
+                      ["yelp", "Yelp"],
+                      ["other", "Other"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Input
+                      key={key}
+                      placeholder={label}
+                      value={payload.trust.reviewPlatforms[key]}
+                      onChange={(e) =>
+                        setPayload((p) => ({
+                          ...p,
+                          trust: {
+                            ...p.trust,
+                            reviewPlatforms: {
+                              ...p.trust.reviewPlatforms,
+                              [key]: e.target.value,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </Field>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={payload.trust.hideEmptyReviews}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, trust: { ...p.trust, hideEmptyReviews: e.target.checked } }))
+                  }
+                />
+                Hide empty reviews in preview (recommended)
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Do not enter fake testimonials — leave cards empty if you have no reviews yet.
               </p>
-              <ul className="list-disc space-y-2 pl-5">
-                <li>Business: {payload.basics.businessName || "—"}</li>
-                <li>Goal: {payload.goal}</li>
-                <li>Website: {payload.websiteType}</li>
-                <li>Style: {payload.style.preset}</li>
-              </ul>
+              {payload.trust.testimonials.map((t, idx) => (
+                <div key={idx} className="grid gap-3 rounded-2xl border border-border/60 p-4 md:grid-cols-2">
+                  <Field label="Name">
+                    <Input
+                      value={t.name}
+                      onChange={(e) => {
+                        const next = [...payload.trust.testimonials];
+                        next[idx] = { ...t, name: e.target.value };
+                        setPayload((p) => ({ ...p, trust: { ...p.trust, testimonials: next } }));
+                      }}
+                    />
+                  </Field>
+                  <Field label="Role / company">
+                    <Input
+                      value={t.role}
+                      onChange={(e) => {
+                        const next = [...payload.trust.testimonials];
+                        next[idx] = { ...t, role: e.target.value };
+                        setPayload((p) => ({ ...p, trust: { ...p.trust, testimonials: next } }));
+                      }}
+                    />
+                  </Field>
+                  <Field label="Review text" className="md:col-span-2">
+                    <Textarea
+                      rows={3}
+                      value={t.text}
+                      onChange={(e) => {
+                        const next = [...payload.trust.testimonials];
+                        next[idx] = { ...t, text: e.target.value };
+                        setPayload((p) => ({ ...p, trust: { ...p.trust, testimonials: next } }));
+                      }}
+                    />
+                  </Field>
+                  <Field label="Rating (optional)">
+                    <Input
+                      value={t.rating}
+                      onChange={(e) => {
+                        const next = [...payload.trust.testimonials];
+                        next[idx] = { ...t, rating: e.target.value };
+                        setPayload((p) => ({ ...p, trust: { ...p.trust, testimonials: next } }));
+                      }}
+                    />
+                  </Field>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() =>
+                      setPayload((p) => ({
+                        ...p,
+                        trust: {
+                          ...p.trust,
+                          testimonials: p.trust.testimonials.filter((_, i) => i !== idx),
+                        },
+                      }))
+                    }
+                  >
+                    Remove testimonial
+                  </Button>
+                </div>
+              ))}
               <Button
                 type="button"
-                size="lg"
-                className="rounded-2xl"
-                disabled={loading}
-                onClick={generate}
+                variant="outline"
+                className="rounded-xl"
+                onClick={() =>
+                  setPayload((p) => ({
+                    ...p,
+                    trust: {
+                      ...p.trust,
+                      testimonials: [
+                        ...p.trust.testimonials,
+                        { name: "", role: "", text: "", rating: "" },
+                      ],
+                    },
+                  }))
+                }
               >
-                {loading ? "Generating…" : "Generate website draft"}
+                Add testimonial
               </Button>
             </div>
           )}
 
-          <div className="flex justify-between gap-3 pt-2">
+          {step === 11 && (
+            <div className="space-y-4">
+              <Field label="Site shape">
+                <div className="flex gap-2">
+                  {(["one-page", "multi-page"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({ ...p, sitePages: { ...p.sitePages, structure: s } }))
+                      }
+                      className={`rounded-2xl border px-4 py-2 text-sm ${
+                        payload.sitePages.structure === s ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {s === "one-page" ? "One-page website" : "Multi-page website"}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Which pages do you need?">
+                <div className="flex flex-wrap gap-2">
+                  {PAGE_OPTIONS.map((pg) => {
+                    const on = payload.sitePages.pages.includes(pg);
+                    return (
+                      <button
+                        key={pg}
+                        type="button"
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            sitePages: {
+                              ...p.sitePages,
+                              pages: on
+                                ? p.sitePages.pages.filter((x) => x !== pg)
+                                : [...p.sitePages.pages, pg],
+                            },
+                          }))
+                        }
+                        className={`rounded-full border px-3 py-1 text-xs ${
+                          on ? "border-primary bg-primary/10" : "border-border/60"
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+            </div>
+          )}
+
+          {step === 12 && (
+            <StepGrid>
+              <Field label="Main keyword">
+                <Input
+                  value={payload.seo.mainKeyword}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, seo: { ...p.seo, mainKeyword: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Secondary keywords">
+                <Input
+                  value={payload.seo.secondaryKeywords}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      seo: { ...p.seo, secondaryKeywords: e.target.value },
+                    }))
+                  }
+                  placeholder="comma separated"
+                />
+              </Field>
+              <Field label="City / region keywords">
+                <Input
+                  value={payload.seo.regionKeywords}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, seo: { ...p.seo, regionKeywords: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="What should people search to find you?" className="md:col-span-2">
+                <Textarea
+                  rows={2}
+                  value={payload.seo.searchIntent}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, seo: { ...p.seo, searchIntent: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Competitors (optional)" className="md:col-span-2">
+                <Textarea
+                  rows={2}
+                  value={payload.seo.competitors}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, seo: { ...p.seo, competitors: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Meta title preference">
+                <Input
+                  value={payload.seo.metaTitleHint}
+                  onChange={(e) =>
+                    setPayload((p) => ({ ...p, seo: { ...p.seo, metaTitleHint: e.target.value } }))
+                  }
+                />
+              </Field>
+              <Field label="Meta description preference">
+                <Textarea
+                  rows={2}
+                  value={payload.seo.metaDescriptionHint}
+                  onChange={(e) =>
+                    setPayload((p) => ({
+                      ...p,
+                      seo: { ...p.seo, metaDescriptionHint: e.target.value },
+                    }))
+                  }
+                />
+              </Field>
+            </StepGrid>
+          )}
+
+          {step === 13 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Toggle features to include in the draft blueprint.</p>
+              <div className="flex flex-wrap gap-2">
+                {EXTRA_FEATURES.map((f) => {
+                  const on = payload.extraFeatures.includes(f);
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() =>
+                        setPayload((p) => ({
+                          ...p,
+                          extraFeatures: on
+                            ? p.extraFeatures.filter((x) => x !== f)
+                            : [...p.extraFeatures, f],
+                        }))
+                      }
+                      className={`rounded-full border px-3 py-1 text-left text-xs ${
+                        on ? "border-primary bg-primary/10" : "border-border/60"
+                      }`}
+                    >
+                      {f}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {step === 14 && (
+            <div className="space-y-4 text-sm text-muted-foreground">
+              <p>
+                Review your answers below. Generate produces a structured JSON blueprint (safe renderer). Demo mode
+                never calls paid APIs.
+              </p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>Business: {payload.basics.businessName}</li>
+                <li>Type: {payload.basics.businessType}</li>
+                <li>Goal: {payload.mainGoal.primary}</li>
+                <li>Services: {payload.offers.services.filter((s) => s.name?.trim()).length} defined</li>
+                <li>Media files: {payload.media.assets.length}</li>
+                <li>Features: {payload.extraFeatures.length} selected</li>
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="lg" className="rounded-2xl" disabled={loading} onClick={generate}>
+                  {loading ? "Generating…" : "Generate website draft"}
+                </Button>
+                <Button type="button" variant="outline" className="rounded-2xl" onClick={saveDraft}>
+                  Save draft
+                </Button>
+                <Button type="button" variant="ghost" className="rounded-2xl" onClick={resetAll}>
+                  Reset
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -647,30 +1616,48 @@ export function OnboardingWizard() {
             >
               Back
             </Button>
-            {step < 8 ? (
-              <Button
-                type="button"
-                className="rounded-xl"
-                onClick={() => {
-                  if (step === 1 && !payload.basics.businessName.trim()) {
-                    toast.error("Business name is required.");
-                    return;
-                  }
-                  if (step === 1 && !payload.basics.industry.trim()) {
-                    toast.error("Industry is required.");
-                    return;
-                  }
-                  setStep((s) => Math.min(8, s + 1));
-                }}
-              >
-                Continue
-              </Button>
-            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {OPTIONAL_STEPS.has(step) ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-xl"
+                  onClick={() => setStep((s) => Math.min(TOTAL_STEPS, s + 1))}
+                >
+                  Skip
+                </Button>
+              ) : null}
+              {step < TOTAL_STEPS ? (
+                <Button
+                  type="button"
+                  className="rounded-xl"
+                  onClick={() => {
+                    if (step === 1) {
+                      if (!payload.basics.businessName.trim()) {
+                        toast.error("Business name is required.");
+                        return;
+                      }
+                      if (!payload.basics.industry.trim()) {
+                        toast.error("Industry is required.");
+                        return;
+                      }
+                    }
+                    setStep((s) => Math.min(TOTAL_STEPS, s + 1));
+                  }}
+                >
+                  Continue
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function StepGrid({ children }: { children: React.ReactNode }) {
+  return <div className="grid gap-4 md:grid-cols-2">{children}</div>;
 }
 
 function Field({

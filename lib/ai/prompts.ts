@@ -16,7 +16,7 @@ Rules:
 - The blueprint must include at least one page with slug "home".
 - Section "type" must be one of: hero, services, trust, testimonials, faq, contact, map, pricing, gallery, before_after, process, cta, footer, navbar.
 - For testimonials, only include clearly fictional placeholder quotes labeled as examples, OR empty items array. Prefer empty if unsure.
-- imagePrompts: 3-6 strings describing hero and key section imagery (no copyrighted brands).
+- imagePrompts: array of objects { section, prompt, purpose, style } describing key imagery (no copyrighted brands). You may also use legacy string entries; prefer structured objects.
 - improvementIdeas: 3-6 concise site improvements as strings.`;
 }
 
