@@ -38,6 +38,7 @@ export function WebsiteRenderer({
 
   const hasNavbar = home.sections.some((s) => s.type === "navbar");
   const hasFooter = home.sections.some((s) => s.type === "footer");
+  const stickyMobileCta = blueprint.extraFeatures?.includes("Sticky mobile CTA");
 
   const logoFromMedia = blueprint.media?.find(
     (m) => m.assetType?.toLowerCase() === "logo" && m.previewDataUrl,
@@ -126,6 +127,16 @@ export function WebsiteRenderer({
           }}
         />
       )}
+      {stickyMobileCta ? (
+        <div className="fixed bottom-4 left-4 right-4 z-50 md:hidden">
+          <a
+            href="#contact"
+            className="flex h-12 w-full items-center justify-center rounded-2xl bg-primary text-sm font-semibold text-primary-foreground shadow-lg"
+          >
+            {blueprint.conversionPlan.primaryCta || "Get in touch"}
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
