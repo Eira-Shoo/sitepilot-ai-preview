@@ -142,27 +142,31 @@ export function ProjectWorkspace({
   return (
     <Tabs defaultValue="preview" className="space-y-6">
       <TabsList className="flex h-auto w-full flex-wrap gap-1 rounded-xl sm:h-10 sm:flex-nowrap">
-        <TabsTrigger value="preview" className="rounded-lg">
+        <TabsTrigger value="preview" className="rounded-lg font-medium">
           Preview
         </TabsTrigger>
-        <TabsTrigger value="blueprint" className="rounded-lg">
-          Blueprint JSON
-        </TabsTrigger>
-        <TabsTrigger value="media" className="rounded-lg">
-          Media
+        <TabsTrigger value="chat" className="rounded-lg">
+          Edit with AI
         </TabsTrigger>
         <TabsTrigger value="seo" className="rounded-lg">
           SEO
         </TabsTrigger>
-        <TabsTrigger value="chat" className="rounded-lg">
-          AI editor
+        <TabsTrigger value="media" className="rounded-lg">
+          Media
         </TabsTrigger>
-        <TabsTrigger value="recs" className="rounded-lg">
-          Recommendations
+        <TabsTrigger value="blueprint" className="rounded-lg">
+          Blueprint JSON
         </TabsTrigger>
-        <TabsTrigger value="packages" className="rounded-lg">
-          Packages
-        </TabsTrigger>
+        {!isDemoPreview ? (
+          <>
+            <TabsTrigger value="recs" className="rounded-lg text-muted-foreground">
+              Recommendations
+            </TabsTrigger>
+            <TabsTrigger value="packages" className="rounded-lg text-muted-foreground">
+              Packages
+            </TabsTrigger>
+          </>
+        ) : null}
       </TabsList>
 
       <TabsContent value="preview" className="space-y-3">

@@ -41,29 +41,29 @@ export function LandingContent() {
               SitePilot AI · Eira Web Studio
             </Badge>
             <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-              AI websites for small businesses — built in minutes, with optional human review when you want it.
+              Get a ready-to-launch website draft for your business in minutes.
             </h1>
             <p className="text-pretty text-lg text-muted-foreground">
-              Describe your business, connect your Google listing, choose a style, and get a structured website draft
-              with copy prompts, layout sections, SEO fields, and contact blocks you can refine before launch.
+              Answer a short questionnaire about your services, style, and goals. You get a complete website preview
+              with real copy, sections, and contact blocks — ready to refine before you go live.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="rounded-2xl px-7">
                 <Link href="/create">
-                  Create my website <ArrowRight className="h-4 w-4" />
+                  Create your free website draft <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="rounded-2xl px-7">
-                <Link href="/preview">See example websites</Link>
+                <Link href="/site/demo">See demo website</Link>
               </Button>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               {[
-                "AI-generated website draft",
-                "Google Maps ready",
-                "SEO-ready structure",
-                "Stripe secure checkout",
-                "Human review available",
+                "Free first draft",
+                "Mobile-friendly layout",
+                "SEO titles & descriptions",
+                "Google Maps section",
+                "Optional human review",
               ].map((t) => (
                 <span
                   key={t}
@@ -114,7 +114,7 @@ export function LandingContent() {
             },
             {
               title: "AI creates your website",
-              body: "Structured JSON blueprint — not random code — rendered with proven, mobile-first sections.",
+              body: "We turn your answers into a full website draft — hero, services, pricing, FAQ, contact, and more.",
             },
             {
               title: "Review, edit and publish",
@@ -201,7 +201,41 @@ export function LandingContent() {
         </div>
       </Section>
 
-      <Section title="Pricing" subtitle="Illustrative packages — final checkout flows when billing is enabled.">
+      <Section
+        title="Built for stability"
+        subtitle="Your draft uses a safe, structured format — not fragile AI-generated code — so what you preview is what you can launch."
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="rounded-2xl border-border/60 bg-card/70">
+            <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Why not raw AI code?</p>
+              <p>
+                SitePilot builds a validated blueprint (structured data) and renders it with proven components. That
+                means fewer surprises, faster edits, and a site you can actually approve.
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-border/60 bg-card/70">
+            <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">What you get in the draft</p>
+              <ul className="space-y-1">
+                {[
+                  "Website copy & section layout",
+                  "SEO metadata & image prompts",
+                  "Contact form & local business blocks",
+                ].map((i) => (
+                  <li key={i} className="flex gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    {i}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </Section>
+
+      <Section title="Pricing" subtitle="Try the AI draft free. Pay only when you want help refining or launching.">
         <div className="grid gap-6 lg:grid-cols-3">
           <PricingCard
             name="Starter"
@@ -265,17 +299,17 @@ export function LandingContent() {
       <section className="border-t border-border/60 bg-gradient-to-r from-primary/15 via-secondary/10 to-accent/10 py-16">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 px-4 text-center sm:px-6">
           <Shield className="h-8 w-8 text-primary" />
-          <h2 className="text-3xl font-semibold tracking-tight">Ready to launch smarter?</h2>
+          <h2 className="text-3xl font-semibold tracking-tight">Ready for your free website draft?</h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            AI drafts the structure and copy direction. You refine the details — optional review can help before you ship
-            — with structured data instead of fragile generated code.
+            Most owners finish the questionnaire in under 15 minutes. Skip what you do not know — the AI fills sensible
+            gaps.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Button asChild size="lg" className="rounded-2xl">
-              <Link href="/create">Start the builder</Link>
+              <Link href="/create">Create your free website draft</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="rounded-2xl">
-              <Link href="/contact">Talk to us</Link>
+              <Link href="/site/demo">See demo website</Link>
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">

@@ -14,8 +14,11 @@ export default function PricingPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-primary">Pricing</p>
         <h1 className="text-4xl font-semibold tracking-tight">Launch offers that scale with you.</h1>
         <p className="text-muted-foreground">
-          Start with an AI draft preview, upgrade to a full business site, or add monthly care for ongoing
-          improvements — all powered by structured blueprints, not fragile generated code.
+          Generate your first website draft for free. Pay only when you want help refining or launching it.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Upgrade later for a full business site, optional human review, or monthly care — no payment required to see
+          your AI draft.
         </p>
       </div>
       <div className="mt-12 grid gap-6 lg:grid-cols-3">
@@ -33,7 +36,7 @@ export default function PricingPage() {
               ))}
             </ul>
             <Button asChild className="w-full rounded-xl">
-              <Link href="/create">Start with Starter</Link>
+              <Link href="/create">Create free draft</Link>
             </Button>
           </CardContent>
         </Card>
@@ -57,7 +60,7 @@ export default function PricingPage() {
               ))}
             </ul>
             <Button asChild className="w-full rounded-xl">
-              <Link href="/create">Choose Business</Link>
+              <Link href="/create">Create free draft</Link>
             </Button>
           </CardContent>
         </Card>

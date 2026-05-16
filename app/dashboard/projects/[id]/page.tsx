@@ -13,9 +13,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Project editor</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Your website draft</h1>
           <p className="text-sm text-muted-foreground">
-            Preview your generated draft in this browser. Connect Supabase to save projects across devices.
+            Preview your site, refine copy with AI, and review SEO and media. Saved in this browser until you connect an
+            account.
           </p>
         </div>
         <DemoProjectShell projectId={DEMO_PROJECT_ID} status="preview" publishedSlug={null} />

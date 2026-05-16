@@ -239,6 +239,11 @@ export function OnboardingWizard() {
         </Badge>
       </div>
 
+      <p className="mt-4 max-w-2xl text-sm text-muted-foreground">
+        Answer the questions you can. Skip what you do not know. The AI will fill the gaps and create a draft you can
+        edit.
+      </p>
+
       <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-primary transition-all"
@@ -1588,10 +1593,39 @@ export function OnboardingWizard() {
 
           {step === 14 && (
             <div className="space-y-6 text-sm">
-              <p className="text-muted-foreground">
-                Confirm everything below. Generate creates a validated JSON blueprint (safe renderer). Demo mode does not
-                call paid APIs.
-              </p>
+              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5 space-y-4">
+                <h3 className="text-lg font-semibold text-foreground">Ready to generate your website?</h3>
+                <p className="text-muted-foreground">
+                  We will build a complete draft for{" "}
+                  <span className="font-medium text-foreground">
+                    {payload.basics.businessName || "your business"}
+                  </span>
+                  . You can edit every section afterward.
+                </p>
+                <ul className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    "Website copy",
+                    "Section layout",
+                    "SEO metadata",
+                    "Image prompts",
+                    "Contact blocks",
+                    payload.localBusiness.showMap || payload.localBusiness.address?.trim()
+                      ? "Local business section"
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .map((item) => (
+                      <li key={item as string} className="flex items-center gap-2 text-sm">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs text-primary">
+                          ✓
+                        </span>
+                        {item}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+
+              <p className="text-xs text-muted-foreground">Review your answers below, then generate your free draft.</p>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <SummaryCard title="Business">
@@ -1657,7 +1691,9 @@ export function OnboardingWizard() {
                   </p>
                 </SummaryCard>
 
-                <SummaryCard title="Services ({payload.offers.services.filter((s) => s.name?.trim()).length})">
+                <SummaryCard
+                  title={`Services (${payload.offers.services.filter((s) => s.name?.trim()).length})`}
+                >
                   <ul className="space-y-2 text-xs">
                     {payload.offers.services
                       .filter((s) => s.name?.trim() || s.description?.trim())
@@ -1765,7 +1801,7 @@ export function OnboardingWizard() {
                   disabled={loading}
                   onClick={generate}
                 >
-                  {loading ? "Generating…" : "Generate website draft"}
+                  {loading ? "Generating your website…" : "Generate my website"}
                 </Button>
                 <Button type="button" variant="outline" className="rounded-2xl" onClick={saveDraft}>
                   Save draft
