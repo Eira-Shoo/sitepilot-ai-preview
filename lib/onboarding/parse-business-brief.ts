@@ -31,7 +31,47 @@ export type BriefImportPreview = {
   trustPoints: string[];
   seoKeywords: string[];
   features: string[];
+  warnings: string[];
 };
+
+type Section = "header" | "services" | "trust" | "seo" | "features";
+
+type ServiceDraft = {
+  name: string;
+  price?: string;
+  duration?: string;
+  description?: string;
+};
+
+const SECTION_BY_HEADING: Record<string, Section> = {
+  services: "services",
+  trust: "trust",
+  seo: "seo",
+  "seo keywords": "seo",
+  features: "features",
+};
+
+const NON_SERVICE_PHRASES = new Set(
+  [
+    "5 years experience",
+    "clean studio",
+    "easy online booking",
+    "premium grooming",
+    "barber hamburg",
+    "men's haircut hamburg",
+    "beard trim hamburg",
+    "contact form",
+    "booking button",
+    "google maps",
+    "faq",
+    "gallery",
+    "pricing cards",
+    "trust badges",
+    "sticky mobile cta",
+  ].map((s) => s.toLowerCase()),
+);
+
+const FEATURE_NAMES_LOWER = new Set(EXTRA_FEATURES.map((f) => f.toLowerCase()));
 
 function lineValue(line: string, keys: string[]): string | undefined {
   for (const key of keys) {
@@ -59,31 +99,108 @@ function matchFromList<T extends string>(items: readonly T[], raw: string[]): T[
   return out;
 }
 
-function parseServiceBullet(line: string): BriefImportPreview["services"][number] | null {
-  const body = line.replace(/^[-*•]\s*/, "").trim();
+function normalizeLabel(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function parseSectionHeader(line: string): Section | null {
+  const trimmed = line.trim();
+  const m = trimmed.match(/^([A-Za-z][A-Za-z0-9\s/&'+-]*)\s*:\s*$/);
+  if (!m) return null;
+  const key = m[1]!.toLowerCase().trim();
+  return SECTION_BY_HEADING[key] ?? null;
+}
+
+function splitServiceParts(body: string): string[] {
+  if (body.includes("|")) {
+    return body.split("|").map((s) => s.trim()).filter(Boolean);
+  }
+  if (/[—–]/.test(body)) {
+    return body.split(/[—–]/).map((s) => s.trim()).filter(Boolean);
+  }
+  const comma = body.split(",").map((s) => s.trim()).filter(Boolean);
+  if (
+    comma.length >= 2 &&
+    comma[1] &&
+    (/\d/.test(comma[1]) || /€|\$|eur|usd|gbp/i.test(comma[1]))
+  ) {
+    return comma;
+  }
+  return [body.trim()];
+}
+
+function parseServiceLine(line: string): ServiceDraft | null {
+  const body = line.replace(/^[-*•]\s*/, "").replace(/^\d+\.\s*/, "").trim();
   if (!body) return null;
 
-  const pipe = body.split("|").map((s) => s.trim());
-  if (pipe.length >= 2) {
+  const parts = splitServiceParts(body);
+  if (parts.length >= 2) {
     return {
-      name: pipe[0] ?? "",
-      price: pipe[1],
-      duration: pipe[2],
-      description: pipe.length > 3 ? pipe.slice(3).join(" | ") : undefined,
-    };
-  }
-
-  const comma = body.split(",").map((s) => s.trim());
-  if (comma.length >= 2) {
-    return {
-      name: comma[0] ?? "",
-      price: comma[1],
-      duration: comma[2],
-      description: comma.slice(3).join(", "),
+      name: parts[0] ?? "",
+      price: parts[1],
+      duration: parts[2],
+      description: parts.length > 3 ? parts.slice(3).join(", ") : undefined,
     };
   }
 
   return { name: body };
+}
+
+function looksLikeNonService(name: string, draft?: ServiceDraft): boolean {
+  const n = normalizeLabel(name);
+  if (!n) return true;
+  if (NON_SERVICE_PHRASES.has(n)) return true;
+  if (FEATURE_NAMES_LOWER.has(n)) return true;
+
+  if (/\bhamburg\b/.test(n) && !/€|\$|min\b/i.test(name)) return true;
+  if (/years?\s+experience/i.test(n)) return true;
+  if (n === "clean studio" || n === "easy online booking" || n === "premium grooming") {
+    return true;
+  }
+
+  const hasPrice = Boolean(draft?.price?.trim() || /\d+\s*€|€\s*\d+|\$\d+/i.test(name));
+  const hasDuration = Boolean(draft?.duration?.trim() || /\d+\s*min/i.test(name));
+  if (!hasPrice && !hasDuration && FEATURE_NAMES_LOWER.has(n)) return true;
+
+  return false;
+}
+
+function pushService(
+  preview: BriefImportPreview,
+  svc: ServiceDraft,
+  warnings: string[],
+): void {
+  const name = svc.name?.trim();
+  if (!name) return;
+
+  if (looksLikeNonService(name, svc)) {
+    warnings.push(`Skipped non-service item in Services: "${name}"`);
+    return;
+  }
+
+  preview.services.push({
+    name,
+    price: svc.price?.trim(),
+    duration: svc.duration?.trim(),
+    description: svc.description?.trim(),
+  });
+}
+
+function pushTrust(preview: BriefImportPreview, value: string) {
+  const t = value.trim();
+  if (t) preview.trustPoints.push(t);
+}
+
+function pushSeo(preview: BriefImportPreview, value: string) {
+  const t = value.trim();
+  if (t) preview.seoKeywords.push(t);
+}
+
+function pushFeature(preview: BriefImportPreview, value: string) {
+  const feat = value.trim();
+  if (!feat) return;
+  const matched = EXTRA_FEATURES.find((f) => f.toLowerCase() === feat.toLowerCase());
+  preview.features.push(matched ?? feat);
 }
 
 function previewFromPartial(partial: Partial<OnboardingPayload>): BriefImportPreview {
@@ -114,13 +231,16 @@ function previewFromPartial(partial: Partial<OnboardingPayload>): BriefImportPre
       partial.trust?.certifications,
       partial.trust?.guarantees,
       partial.trust?.awards,
-    ].filter(Boolean) as string[],
+    ]
+      .flatMap((t) => (t ? String(t).split(/\n/).map((x) => x.trim()) : []))
+      .filter(Boolean),
     seoKeywords: [
       partial.seo?.mainKeyword,
       ...splitList(partial.seo?.secondaryKeywords ?? ""),
       ...splitList(partial.seo?.regionKeywords ?? ""),
     ].filter(Boolean) as string[],
     features: partial.extraFeatures ?? [],
+    warnings: [],
   };
 }
 
@@ -137,8 +257,7 @@ export function buildOnboardingFromPreview(
     cta: "Book now",
   }));
 
-  const trustText = preview.trustPoints.join("\n");
-  const yearsMatch = trustText.match(/(\d+)\s*years?\s+experience/i);
+  const yearsMatch = preview.trustPoints.find((t) => /(\d+)\s*years?\s+experience/i.test(t));
 
   return {
     basics: {
@@ -181,9 +300,7 @@ export function buildOnboardingFromPreview(
       fontStyle: preview.fontStyle ?? "Modern",
     },
     trust: {
-      yearsExperience: yearsMatch
-        ? `${yearsMatch[1]} years experience`
-        : preview.trustPoints.find((t) => /years?\s+experience/i.test(t)) ?? "",
+      yearsExperience: yearsMatch ?? "",
       guarantees: preview.trustPoints.filter((t) => !/years?\s+experience/i.test(t)).join("\n"),
     },
     seo: {
@@ -200,6 +317,7 @@ export function parseBusinessBriefText(text: string): {
   preview: BriefImportPreview;
 } {
   const lines = text.split(/\r?\n/);
+  const warnings: string[] = [];
   const preview: BriefImportPreview = {
     styles: [],
     moods: [],
@@ -207,47 +325,106 @@ export function parseBusinessBriefText(text: string): {
     trustPoints: [],
     seoKeywords: [],
     features: [],
+    warnings,
   };
 
-  let section = "header";
+  let section: Section = "header";
+  let serviceDraft: ServiceDraft | null = null;
+
+  const flushServiceDraft = () => {
+    if (!serviceDraft?.name?.trim()) {
+      serviceDraft = null;
+      return;
+    }
+    pushService(preview, serviceDraft, warnings);
+    serviceDraft = null;
+  };
 
   for (const raw of lines) {
     const line = raw.trim();
-    if (!line) continue;
-
-    const sectionHeader = line.match(/^([A-Za-z][\w\s/&-]*)\s*:?\s*$/);
-    if (sectionHeader && !line.includes(":")) {
-      const name = sectionHeader[1]!.toLowerCase();
-      if (name.startsWith("service")) section = "services";
-      else if (name === "trust") section = "trust";
-      else if (name.startsWith("seo")) section = "seo";
-      else if (name.startsWith("feature")) section = "features";
-      else section = "header";
+    if (!line) {
+      if (section === "services") flushServiceDraft();
       continue;
     }
 
-    if (section === "services" && /^[-*•]/.test(line)) {
-      const svc = parseServiceBullet(line);
-      if (svc) preview.services.push(svc);
+    const nextSection = parseSectionHeader(line);
+    if (nextSection) {
+      if (section === "services") flushServiceDraft();
+      section = nextSection;
       continue;
     }
 
-    if (section === "trust" && /^[-*•]/.test(line)) {
-      preview.trustPoints.push(line.replace(/^[-*•]\s*/, "").trim());
+    const seoInline = line.match(/^seo(?:\s+keywords)?\s*[:：]\s*(.+)$/i);
+    if (seoInline?.[1]?.trim()) {
+      if (section === "services") flushServiceDraft();
+      section = "seo";
+      for (const kw of splitList(seoInline[1])) pushSeo(preview, kw);
       continue;
     }
 
-    if (section === "seo" && /^[-*•]/.test(line)) {
-      preview.seoKeywords.push(line.replace(/^[-*•]\s*/, "").trim());
+    if (section === "services") {
+      const numbered = line.match(/^(\d+)\.\s+(.+)$/);
+      if (numbered && !line.includes(":")) {
+        flushServiceDraft();
+        serviceDraft = { name: numbered[2]!.trim() };
+        continue;
+      }
+
+      const price = lineValue(line, ["Price", "Starting price"]);
+      if (price && serviceDraft) {
+        serviceDraft.price = price;
+        continue;
+      }
+
+      const duration = lineValue(line, ["Duration", "Time"]);
+      if (duration && serviceDraft) {
+        serviceDraft.duration = duration;
+        continue;
+      }
+
+      const description = lineValue(line, ["Description", "Details"]);
+      if (description && serviceDraft) {
+        serviceDraft.description = description;
+        continue;
+      }
+
+      if (/^[-*•]/.test(line) || splitServiceParts(line.replace(/^[-*•]\s*/, "")).length >= 2) {
+        flushServiceDraft();
+        const svc = parseServiceLine(line);
+        if (svc) pushService(preview, svc, warnings);
+        continue;
+      }
+
+      if (serviceDraft && !lineValue(line, ["Price", "Duration", "Description"])) {
+        flushServiceDraft();
+      }
       continue;
     }
 
-    if (section === "features" && /^[-*•]/.test(line)) {
-      const feat = line.replace(/^[-*•]\s*/, "").trim();
-      const matched = EXTRA_FEATURES.find(
-        (f) => f.toLowerCase() === feat.toLowerCase(),
-      );
-      preview.features.push(matched ?? feat);
+    if (section === "trust") {
+      if (/^[-*•]/.test(line)) {
+        pushTrust(preview, line.replace(/^[-*•]\s*/, ""));
+      } else {
+        pushTrust(preview, line);
+      }
+      continue;
+    }
+
+    if (section === "seo") {
+      if (/^[-*•]/.test(line)) {
+        pushSeo(preview, line.replace(/^[-*•]\s*/, ""));
+      } else {
+        for (const kw of splitList(line)) pushSeo(preview, kw);
+      }
+      continue;
+    }
+
+    if (section === "features") {
+      if (/^[-*•]/.test(line)) {
+        pushFeature(preview, line.replace(/^[-*•]\s*/, ""));
+      } else {
+        pushFeature(preview, line);
+      }
       continue;
     }
 
@@ -299,12 +476,9 @@ export function parseBusinessBriefText(text: string): {
       const hit = FONT_STYLES.find((f) => f.toLowerCase() === font.toLowerCase());
       preview.fontStyle = hit ?? font;
     }
-
-    if (/^[-*•]/.test(line) && section === "header") {
-      const svc = parseServiceBullet(line);
-      if (svc?.name) preview.services.push(svc);
-    }
   }
+
+  if (section === "services") flushServiceDraft();
 
   if (preview.goal) {
     const goalHit = WEBSITE_GOALS.find(
@@ -312,6 +486,10 @@ export function parseBusinessBriefText(text: string): {
     );
     if (goalHit) preview.goal = goalHit;
   }
+
+  preview.trustPoints = [...new Set(preview.trustPoints.map((t) => t.trim()).filter(Boolean))];
+  preview.seoKeywords = [...new Set(preview.seoKeywords.map((t) => t.trim()).filter(Boolean))];
+  preview.features = [...new Set(preview.features)];
 
   const partial = buildOnboardingFromPreview(preview);
   return { partial, preview };

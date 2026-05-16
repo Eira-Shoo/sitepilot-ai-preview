@@ -277,7 +277,7 @@ export function BriefImportDialog({ open, onClose, onApply }: Props) {
           {preview ? (
             <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm">
               <p className="font-semibold text-foreground">Detected business data</p>
-              <ul className="mt-2 space-y-1 text-muted-foreground">
+              <ul className="mt-2 space-y-2 text-muted-foreground">
                 {preview.businessName ? (
                   <li>
                     <span className="text-foreground">Business:</span> {preview.businessName}
@@ -306,22 +306,58 @@ export function BriefImportDialog({ open, onClose, onApply }: Props) {
                 ) : null}
                 {preview.styles.length ? (
                   <li>
-                    <span className="text-foreground">Style:</span> {preview.styles.join(", ")}
+                    <span className="font-medium text-foreground">Styles:</span>{" "}
+                    {preview.styles.join(", ")}
+                  </li>
+                ) : null}
+                {preview.moods.length ? (
+                  <li>
+                    <span className="font-medium text-foreground">Mood:</span>{" "}
+                    {preview.moods.join(", ")}
                   </li>
                 ) : null}
                 {preview.services.length ? (
                   <li>
-                    <span className="text-foreground">Services:</span>{" "}
-                    {preview.services.map((s) => s.name).join(", ")}
+                    <span className="font-medium text-foreground">Services:</span>
+                    <ul className="mt-1 list-inside list-disc pl-1">
+                      {preview.services.map((s) => (
+                        <li key={s.name}>
+                          {s.name}
+                          {s.price || s.duration
+                            ? ` — ${[s.price, s.duration].filter(Boolean).join(" — ")}`
+                            : ""}
+                          {s.description ? ` — ${s.description}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ) : null}
+                {preview.trustPoints.length ? (
+                  <li>
+                    <span className="font-medium text-foreground">Trust:</span>{" "}
+                    {preview.trustPoints.join(", ")}
+                  </li>
+                ) : null}
+                {preview.seoKeywords.length ? (
+                  <li>
+                    <span className="font-medium text-foreground">SEO keywords:</span>{" "}
+                    {preview.seoKeywords.join(", ")}
                   </li>
                 ) : null}
                 {preview.features.length ? (
                   <li>
-                    <span className="text-foreground">Features:</span>{" "}
+                    <span className="font-medium text-foreground">Features:</span>{" "}
                     {preview.features.join(", ")}
                   </li>
                 ) : null}
               </ul>
+              {preview.warnings?.length ? (
+                <ul className="mt-3 space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  {preview.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 
