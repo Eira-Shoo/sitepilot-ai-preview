@@ -1,6 +1,7 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { buildParsedBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { applyBlueprintOutputCleanup } from "@/lib/blueprint/blueprint-cleanup";
 import { brandingCombinedForColors } from "@/lib/onboarding/branding-helpers";
 
 const SECTION_ORDER: WebsiteBlueprint["pages"][number]["sections"][number]["type"][] = [
@@ -195,7 +196,7 @@ export function finalizeLandingPageBlueprint(
 
   sections.sort((a, b) => sectionSortIndex(a.type) - sectionSortIndex(b.type));
 
-  return {
+  const finalized: WebsiteBlueprint = {
     ...blueprint,
     business: { ...mock.business, ...blueprint.business, name: businessName },
     brand: { ...mock.brand, ...blueprint.brand },
@@ -213,4 +214,6 @@ export function finalizeLandingPageBlueprint(
     },
     pages: [{ ...blueprint.pages[0], sections }],
   };
+
+  return applyBlueprintOutputCleanup(finalized, onboarding);
 }

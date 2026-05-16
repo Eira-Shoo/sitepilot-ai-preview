@@ -1,4 +1,5 @@
 import type { BlueprintSection } from "@/lib/validators/website-blueprint";
+import { serviceDescriptionFallback } from "@/lib/blueprint/blueprint-cleanup";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Clock, Sparkles } from "lucide-react";
@@ -31,6 +32,8 @@ export function ServicesSection({ section }: { section: Services }) {
       <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {section.items.map((item: ServiceItem, i: number) => {
           const priceLine = [item.price, item.duration].filter(Boolean).join(" · ");
+          const description =
+            item.description?.trim() || serviceDescriptionFallback(item.name);
           return (
             <Card
               key={i}
@@ -57,7 +60,7 @@ export function ServicesSection({ section }: { section: Services }) {
                 ) : null}
               </CardHeader>
               <CardContent className="mt-auto space-y-4">
-                <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
                 {item.included ? (
                   <p className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">Includes: </span>

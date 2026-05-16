@@ -1,6 +1,10 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import {
+  buildPricingItemsFromOnboarding,
+  buildServiceItemsFromOnboarding,
+} from "@/lib/blueprint/blueprint-cleanup";
 import { finalizeLandingPageBlueprint } from "@/lib/blueprint/finalize-landing-page";
 
 function sectionByType<T extends WebsiteBlueprint["pages"][number]["sections"][number]["type"]>(
@@ -91,10 +95,14 @@ export function enrichBlueprintFromOnboarding(
     sections: home.sections.map((section) => {
       const mockSection = mockHome.sections.find((s) => s.type === section.type);
 
-      if (section.type === "services" && mockServices?.type === "services") {
+      if (section.type === "services") {
         const userServices = (onboarding.offers.services ?? []).filter((s) => s.name?.trim());
         if (userServices.length > 0) {
-          return { ...mockServices };
+          return {
+            ...section,
+            headline: mockServices?.type === "services" ? mockServices.headline : section.headline,
+            items: buildServiceItemsFromOnboarding(onboarding),
+          };
         }
       }
 
@@ -116,8 +124,15 @@ export function enrichBlueprintFromOnboarding(
         return { ...mockTrust };
       }
 
-      if (section.type === "pricing" && mockPricing?.type === "pricing" && mockPricing.items.length) {
-        return { ...mockPricing };
+      if (section.type === "pricing") {
+        const pricingItems = buildPricingItemsFromOnboarding(onboarding);
+        if (pricingItems.length) {
+          return {
+            ...section,
+            headline: mockPricing?.type === "pricing" ? mockPricing.headline : section.headline,
+            items: pricingItems,
+          };
+        }
       }
 
       if (section.type === "navbar" && mockNavbar?.type === "navbar") {

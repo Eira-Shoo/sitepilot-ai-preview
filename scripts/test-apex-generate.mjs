@@ -136,6 +136,23 @@ try {
   console.log("ok:", json.ok, "source:", json.source, "error:", json.error);
   if (json.details) console.log("details:", json.details);
   if (json.message) console.log("message:", json.message);
+  const home = json.blueprint?.pages?.[0];
+  const services = home?.sections?.find((s) => s.type === "services");
+  const pricing = home?.sections?.find((s) => s.type === "pricing");
+  if (services?.items) {
+    console.log("services count:", services.items.length);
+    console.log(
+      "services:",
+      services.items.map((i) => `${i.name} | ${i.price} | ${i.duration}`),
+    );
+  }
+  if (pricing?.items) {
+    console.log("pricing count:", pricing.items.length);
+    console.log(
+      "pricing:",
+      pricing.items.map((i) => `${i.name} | ${i.price} | ${i.duration}`),
+    );
+  }
 } catch {
   console.log(text.slice(0, 500));
 }

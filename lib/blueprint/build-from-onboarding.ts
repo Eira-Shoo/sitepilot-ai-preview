@@ -1,6 +1,10 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import {
+  buildPricingItemsFromOnboarding,
+  buildServiceItemsFromOnboarding,
+} from "@/lib/blueprint/blueprint-cleanup";
 import { finalizeLandingPageBlueprint } from "@/lib/blueprint/finalize-landing-page";
 import {
   brandingCombinedForColors,
@@ -15,15 +19,6 @@ function hasFeature(extra: string[], label: string) {
 function isBookingGoal(primary: string) {
   const g = primary.toLowerCase();
   return g.includes("book") || g.includes("appointment") || g.includes("reserv");
-}
-
-function serviceCta(name: string, primaryGoal: string, explicit?: string) {
-  if (explicit?.trim()) return explicit.trim();
-  if (isBookingGoal(primaryGoal)) {
-    const short = name.split(" ")[0] ?? name;
-    return `Book ${short.toLowerCase()}`;
-  }
-  return "Learn more";
 }
 
 function buildHeroHeadline(o: OnboardingPayload, name: string) {
@@ -118,24 +113,11 @@ export function buildParsedBlueprintFromOnboarding(o: OnboardingPayload): Websit
         a.placement.some((p) => p.toLowerCase().includes("services"))),
   );
 
-  const servicesItems = (o.offers.services ?? [])
-    .filter((s) => s.name?.trim() || s.description?.trim())
-    .map((s, i) => {
-      const img = productAssets[i]?.previewDataUrl ?? "";
-      const descParts = [s.description?.trim(), s.whoFor ? `For: ${s.whoFor}` : "", s.included ? `Includes: ${s.included}` : ""].filter(
-        Boolean,
-      );
-      return {
-        name: s.name?.trim() || `Service ${i + 1}`,
-        description: descParts.join("\n\n") || "Details coming soon.",
-        price: s.startingPrice?.trim() ?? "",
-        duration: s.duration?.trim() ?? "",
-        cta: serviceCta(s.name?.trim() || `Service ${i + 1}`, o.mainGoal.primary, s.cta),
-        whoFor: s.whoFor?.trim() ?? "",
-        included: s.included?.trim() ?? "",
-        imageUrl: img,
-      };
-    });
+  const serviceImageUrls = productAssets.map((a) => a.previewDataUrl ?? "");
+  const servicesItems = buildServiceItemsFromOnboarding(o, {
+    imageUrlsByIndex: serviceImageUrls,
+    primaryCta,
+  });
 
   const trustItems: string[] = [];
   if (o.trust.yearsExperience) trustItems.push(`${o.trust.yearsExperience} years of experience`);
@@ -200,28 +182,12 @@ export function buildParsedBlueprintFromOnboarding(o: OnboardingPayload): Websit
       ? `${o.imageDirection.requiredSubjects || o.basics.industry} — ${o.imageDirection.preferredStyle}. ${o.imageDirection.avoid ? `Avoid: ${o.imageDirection.avoid}.` : ""}`.trim()
       : heroAsset?.altText || "";
 
-  let pricingItems =
-    showPricing && o.packages.items?.length
-      ? o.packages.items
-          .filter((p) => p.name?.trim())
-          .map((p) => ({
-            name: p.name!.trim(),
-            description: (p.features || "").trim() || `${p.billing} billing`,
-            price: p.price?.trim() || "See details",
-            duration: "",
-            cta: primaryCta,
-            whoFor: "",
-            included: p.features?.trim() ?? "",
-            imageUrl: "",
-          }))
-      : [];
-
-  if (!pricingItems.length && showPricing && servicesItems.some((s) => s.price)) {
-    pricingItems = servicesItems.map((s) => ({
-      ...s,
-      cta: s.cta || primaryCta,
-    }));
-  }
+  const pricingItems = showPricing
+    ? buildPricingItemsFromOnboarding(o, {
+        imageUrlsByIndex: serviceImageUrls,
+        primaryCta,
+      })
+    : [];
 
   const navLinks: { label: string; href: string }[] = [{ label: "Home", href: "#top" }];
   if (servicesItems.length) navLinks.push({ label: "Services", href: "#services" });
@@ -261,7 +227,7 @@ export function buildParsedBlueprintFromOnboarding(o: OnboardingPayload): Websit
     sections.push({
       type: "trust",
       headline: "Trusted by local clients",
-      items: [...new Set(trustItems)].slice(0, 8),
+      items: [...new Set(trustItems)].slice(0, 4),
     });
   }
 
@@ -375,7 +341,7 @@ export function buildParsedBlueprintFromOnboarding(o: OnboardingPayload): Websit
     sections.push({
       type: "faq",
       headline: "FAQ",
-      items: faqPairs,
+      items: faqPairs.slice(0, 5),
     });
   }
 
