@@ -53,8 +53,8 @@ const config: Config = {
         "3xl": "1.5rem",
       },
       fontFamily: {
-        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "monospace"],
+        sans: ["system-ui", "Segoe UI", "Roboto", "sans-serif"],
+        mono: ["ui-monospace", "Consolas", "monospace"],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

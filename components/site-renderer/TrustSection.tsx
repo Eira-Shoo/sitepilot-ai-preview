@@ -1,24 +1,30 @@
 import type { BlueprintSection } from "@/lib/validators/website-blueprint";
-import { CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Star } from "lucide-react";
 
 type Trust = Extract<BlueprintSection, { type: "trust" }>;
 
 export function TrustSection({ section }: { section: Trust }) {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
-      <h2 className="text-center text-3xl font-semibold tracking-tight">
-        {section.headline}
-      </h2>
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {section.items.map((item: string, i: number) => (
-          <div
-            key={i}
-            className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/60 p-4"
-          >
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
-            <p className="text-sm leading-relaxed">{item}</p>
-          </div>
-        ))}
+    <section className="border-b border-border/40 bg-muted/10 py-10">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <p className="text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+          {section.headline}
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {section.items.map((item: string, i: number) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/70 px-4 py-3.5 shadow-sm"
+            >
+              {i === 0 ? (
+                <Star className="h-5 w-5 shrink-0 text-[var(--sp-secondary,#c9a227)]" />
+              ) : (
+                <ShieldCheck className="h-5 w-5 shrink-0 text-[var(--sp-secondary,#c9a227)]" />
+              )}
+              <p className="text-sm font-medium leading-snug">{item}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

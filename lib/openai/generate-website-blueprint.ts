@@ -19,20 +19,48 @@ import {
   assertGenerationConfigured,
   isMockGenerationForced,
   logGenerationConfigOnce,
-  OPENAI_KEY_MISSING_MESSAGE,
 } from "@/lib/ai/generation-config";
-import { hasOpenAiKey } from "@/lib/runtime";
+import { OPENAI_KEY_INVALID_MESSAGE, OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
+import { openAiKeySuffix, resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 
 export type BlueprintGenerationSource = "openai" | "mock";
 
 export class OpenAiGenerationError extends Error {
+  readonly statusCode: number;
+  readonly code: string;
+
   constructor(
     message: string,
-    readonly cause?: unknown,
+    cause?: unknown,
+    options?: { statusCode?: number; code?: string },
   ) {
     super(message);
     this.name = "OpenAiGenerationError";
+    this.cause = cause;
+    this.statusCode = options?.statusCode ?? 502;
+    this.code = options?.code ?? "openai_generation_failed";
   }
+}
+
+function isOpenAiAuthError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { status?: number; code?: string };
+  return e.status === 401 || e.code === "invalid_api_key";
+}
+
+function normalizeOpenAiFailure(error: unknown): OpenAiGenerationError {
+  if (error instanceof OpenAiGenerationError) return error;
+  if (isOpenAiAuthError(error)) {
+    const suffix = openAiKeySuffix();
+    const hint = suffix ? ` (aktiver Schlüssel endet auf …${suffix})` : "";
+    return new OpenAiGenerationError(`${OPENAI_KEY_INVALID_MESSAGE}${hint}`, error, {
+      statusCode: 401,
+      code: "openai_invalid_api_key",
+    });
+  }
+  const message =
+    error instanceof Error ? error.message : "OpenAI generation failed";
+  return new OpenAiGenerationError(message, error);
 }
 
 function logGenerationSource(source: BlueprintGenerationSource) {
@@ -42,10 +70,14 @@ function logGenerationSource(source: BlueprintGenerationSource) {
 }
 
 function getClient() {
-  if (!hasOpenAiKey()) {
-    throw new OpenAiGenerationError("OPENAI_API_KEY is not configured");
+  const apiKey = resolveOpenAiApiKey();
+  if (!apiKey) {
+    throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE, undefined, {
+      statusCode: 503,
+      code: "openai_key_missing",
+    });
   }
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey });
 }
 
 async function requestBlueprintJson(
@@ -77,17 +109,41 @@ async function requestBlueprintJson(
   }
 }
 
+function formatValidationIssues(parsed: unknown): string | null {
+  const validated = safeParseWebsiteBlueprint(parsed);
+  if (validated.success) return null;
+  return validated.error.issues
+    .slice(0, 12)
+    .map((i) => `${i.path.join(".")}: ${i.message}`)
+    .join("; ");
+}
+
 async function parseAndEnrich(
   parsed: unknown,
   onboarding: OnboardingPayload,
+  openai: OpenAI,
 ): Promise<WebsiteBlueprint> {
-  const validated = safeParseWebsiteBlueprint(parsed);
-  if (!validated.success) {
-    throw new OpenAiGenerationError(
-      `Blueprint validation failed: ${validated.error.issues[0]?.message ?? "invalid structure"}`,
+  let current = parsed;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const issues = formatValidationIssues(current);
+    if (!issues) {
+      return enrichBlueprintFromOnboarding(
+        parseWebsiteBlueprint(current),
+        onboarding,
+      );
+    }
+    if (attempt === 2) {
+      throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`);
+    }
+    current = await requestBlueprintJson(
+      openai,
+      onboarding,
+      buildBlueprintRepairPrompt(issues),
     );
   }
-  return enrichBlueprintFromOnboarding(parseWebsiteBlueprint(validated.data), onboarding);
+
+  throw new OpenAiGenerationError("Blueprint validation failed");
 }
 
 async function generateBlueprintFromOpenAi(
@@ -96,16 +152,7 @@ async function generateBlueprintFromOpenAi(
   const openai = getClient();
   let parsed: unknown = await requestBlueprintJson(openai, onboarding);
 
-  const validated = safeParseWebsiteBlueprint(parsed);
-  if (!validated.success) {
-    const issues = validated.error.issues
-      .slice(0, 12)
-      .map((i) => `${i.path.join(".")}: ${i.message}`)
-      .join("; ");
-    parsed = await requestBlueprintJson(openai, onboarding, buildBlueprintRepairPrompt(issues));
-  }
-
-  let blueprint = await parseAndEnrich(parsed, onboarding);
+  let blueprint = await parseAndEnrich(parsed, onboarding, openai);
 
   const serviceCheck = validateProvidedServicesInBlueprint(blueprint, onboarding);
   if (!serviceCheck.ok && serviceCheck.missing.length > 0) {
@@ -114,7 +161,7 @@ async function generateBlueprintFromOpenAi(
       onboarding,
       buildBlueprintServicesStrictPrompt(serviceCheck.missing),
     );
-    blueprint = await parseAndEnrich(parsed, onboarding);
+    blueprint = await parseAndEnrich(parsed, onboarding, openai);
   }
 
   return blueprint;
@@ -123,7 +170,7 @@ async function generateBlueprintFromOpenAi(
 /**
  * Generate a website blueprint from the 14-step questionnaire.
  * - NEXT_PUBLIC_DEMO_MODE=1 → always mock (even if OPENAI_API_KEY is set).
- * - Missing OPENAI_API_KEY → mock.
+ * - Missing key → error (503) unless demo mock fallback is allowed.
  * - Otherwise → OpenAI; mock fallback only when allowMockFallback (public demo mode).
  */
 export async function createBlueprintFromOnboarding(
@@ -167,12 +214,6 @@ export async function createBlueprintFromOnboarding(
         source,
       };
     }
-    const message =
-      error instanceof OpenAiGenerationError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "OpenAI generation failed";
-    throw new OpenAiGenerationError(message, error);
+    throw normalizeOpenAiFailure(error);
   }
 }

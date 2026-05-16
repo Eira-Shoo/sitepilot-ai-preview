@@ -4,11 +4,13 @@ import { buildEditBlueprintPrompt, buildRecommendationsPrompt } from "@/lib/ai/p
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { mockEditBlueprint } from "@/lib/blueprint/mock-edit-blueprint";
 import { createBlueprintFromOnboarding } from "@/lib/openai/generate-website-blueprint";
-import { hasOpenAiKey, shouldUseMockAiGeneration } from "@/lib/runtime";
+import { shouldUseMockAiGeneration } from "@/lib/runtime";
+import { resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 
 function getClient() {
-  if (!hasOpenAiKey()) throw new Error("Missing OPENAI_API_KEY");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const apiKey = resolveOpenAiApiKey();
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+  return new OpenAI({ apiKey });
 }
 
 /** @deprecated Prefer createBlueprintFromOnboarding for routing and fallback control. */

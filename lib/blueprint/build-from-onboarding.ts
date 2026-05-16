@@ -1,9 +1,38 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import { finalizeLandingPageBlueprint } from "@/lib/blueprint/finalize-landing-page";
 
 function hasFeature(extra: string[], label: string) {
   return extra.some((e) => e.toLowerCase() === label.toLowerCase());
+}
+
+function isBookingGoal(primary: string) {
+  const g = primary.toLowerCase();
+  return g.includes("book") || g.includes("appointment") || g.includes("reserv");
+}
+
+function serviceCta(name: string, primaryGoal: string, explicit?: string) {
+  if (explicit?.trim()) return explicit.trim();
+  if (isBookingGoal(primaryGoal)) {
+    const short = name.split(" ")[0] ?? name;
+    return `Book ${short.toLowerCase()}`;
+  }
+  return "Learn more";
+}
+
+function buildHeroHeadline(o: OnboardingPayload, name: string) {
+  const city = o.basics.city?.trim();
+  const industry = o.basics.industry?.trim();
+  const combined = `${o.branding.websiteStyle} ${o.branding.colorsPreferred}`.toLowerCase();
+  const premium =
+    combined.includes("premium") ||
+    combined.includes("luxury") ||
+    (combined.includes("gold") && (combined.includes("black") || combined.includes("dark")));
+  if (city && industry) {
+    return `${premium ? "Premium " : ""}${industry} in ${city}`;
+  }
+  return name;
 }
 
 function inferColors(style: string, preferred: string) {
@@ -36,9 +65,15 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
   const { primary, secondary } = inferColors(o.branding.websiteStyle, o.branding.colorsPreferred);
 
   const extra = o.extraFeatures ?? [];
+  const booking = isBookingGoal(o.mainGoal.primary);
+  const primaryCta =
+    o.mainGoal.primaryCta?.trim() || (booking ? "Book an appointment" : "Get started");
+  const secondaryCta =
+    o.mainGoal.secondaryCta?.trim() || (booking ? "View services" : "Learn more");
   const showPricing =
-    hasFeature(extra, "Pricing cards") &&
-    !o.packages.visibility.startsWith("No, ask users");
+    (!o.packages.visibility.startsWith("No, ask users") &&
+      (hasFeature(extra, "Pricing cards") || (o.packages.items ?? []).some((p) => p.price?.trim()))) ||
+    (o.offers.services ?? []).some((s) => s.startingPrice?.trim());
 
   const logoAsset = o.media.assets.find(
     (a) => a.assetType?.toLowerCase() === "logo" && a.previewDataUrl,
@@ -86,34 +121,24 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
         description: descParts.join("\n\n") || "Details coming soon.",
         price: s.startingPrice?.trim() ?? "",
         duration: s.duration?.trim() ?? "",
-        cta: s.cta?.trim() || "Learn more",
+        cta: serviceCta(s.name?.trim() || `Service ${i + 1}`, o.mainGoal.primary, s.cta),
         whoFor: s.whoFor?.trim() ?? "",
         included: s.included?.trim() ?? "",
         imageUrl: img,
       };
     });
 
-  if (!servicesItems.length) {
-    servicesItems.push({
-      name: "Signature offering",
-      description: o.basics.description?.trim() || "Tell us more and we will expand this block.",
-      price: "",
-      duration: "",
-      cta: o.mainGoal.primaryCta || "Get in touch",
-      whoFor: "",
-      included: "",
-      imageUrl: "",
-    });
-  }
-
   const trustItems: string[] = [];
-  if (o.trust.yearsExperience) trustItems.push(`${o.trust.yearsExperience} years experience`);
-  if (o.trust.certifications) trustItems.push(`Certifications: ${o.trust.certifications}`);
-  if (o.trust.awards) trustItems.push(`Awards: ${o.trust.awards}`);
-  if (o.trust.guarantees) trustItems.push(`Guarantees: ${o.trust.guarantees}`);
-  if (o.trust.paymentMethods) trustItems.push(`Payments: ${o.trust.paymentMethods}`);
+  if (o.trust.yearsExperience) trustItems.push(`${o.trust.yearsExperience} years of experience`);
+  if (o.trust.guarantees?.trim()) trustItems.push(o.trust.guarantees.trim());
+  if (o.trust.certifications?.trim()) trustItems.push(o.trust.certifications.trim());
+  if (o.trust.awards?.trim()) trustItems.push(o.trust.awards.trim());
+  if (o.trust.paymentMethods?.trim()) trustItems.push(`Secure payment: ${o.trust.paymentMethods.trim()}`);
+  if (booking) trustItems.push("Easy online booking");
+  if (o.basics.city?.trim()) trustItems.push(`Local business in ${o.basics.city.trim()}`);
+  trustItems.push("Clean, professional environment");
   if (o.localBusiness.showLocalTrust && o.basics.businessType) {
-    trustItems.push(`Serving ${o.basics.businessType.toLowerCase()} clients`);
+    trustItems.push(`Trusted ${o.basics.businessType.toLowerCase()} for local clients`);
   }
 
   const testimonialRows = (o.trust.testimonials ?? []).filter((t) => t.text?.trim());
@@ -166,7 +191,7 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
       ? `${o.imageDirection.requiredSubjects || o.basics.industry} — ${o.imageDirection.preferredStyle}. ${o.imageDirection.avoid ? `Avoid: ${o.imageDirection.avoid}.` : ""}`.trim()
       : heroAsset?.altText || "";
 
-  const pricingItems =
+  let pricingItems =
     showPricing && o.packages.items?.length
       ? o.packages.items
           .filter((p) => p.name?.trim())
@@ -175,12 +200,19 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
             description: (p.features || "").trim() || `${p.billing} billing`,
             price: p.price?.trim() || "See details",
             duration: "",
-            cta: o.mainGoal.primaryCta || "Choose plan",
+            cta: primaryCta,
             whoFor: "",
             included: p.features?.trim() ?? "",
             imageUrl: "",
           }))
       : [];
+
+  if (!pricingItems.length && showPricing && servicesItems.some((s) => s.price)) {
+    pricingItems = servicesItems.map((s) => ({
+      ...s,
+      cta: s.cta || primaryCta,
+    }));
+  }
 
   const navLinks: { label: string; href: string }[] = [{ label: "Home", href: "#top" }];
   if (servicesItems.length) navLinks.push({ label: "Services", href: "#services" });
@@ -205,38 +237,80 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
 
   sections.push({
     type: "hero",
-    headline: `${name} — ${o.mainGoal.primary}`,
+    headline: buildHeroHeadline(o, name),
     subheadline:
       o.basics.description?.trim() ||
       o.targetAudience.who?.trim() ||
-      `Built for ${o.basics.industry.toLowerCase()} — ${o.mainGoal.primary.toLowerCase()}.`,
-    primaryCta: o.mainGoal.primaryCta?.trim() || "Get started",
-    secondaryCta: o.mainGoal.secondaryCta?.trim() || "",
+      `Professional ${o.basics.industry.toLowerCase()}${o.basics.city ? ` in ${o.basics.city}` : ""} with transparent pricing and ${booking ? "simple booking" : "clear next steps"}.`,
+    primaryCta,
+    secondaryCta,
     imagePrompt: heroPrompt,
     imageUrl: heroImageUrl,
   });
 
-  if (trustItems.length && (o.localBusiness.showLocalTrust || trustItems.length >= 2)) {
+  if (trustItems.length) {
     sections.push({
       type: "trust",
-      headline: "Why choose us",
-      items: trustItems.slice(0, 8),
+      headline: "Trusted by local clients",
+      items: [...new Set(trustItems)].slice(0, 8),
     });
   }
 
-  sections.push({
-    type: "services",
-    headline: `What we offer`,
-    items: servicesItems,
-  });
+  if (servicesItems.length) {
+    sections.push({
+      type: "services",
+      headline: "Our services",
+      items: servicesItems,
+    });
+  }
 
   if (showPricing && pricingItems.length) {
     sections.push({
       type: "pricing",
-      headline: "Plans & pricing",
+      headline: "Transparent pricing",
       items: pricingItems,
     });
   }
+
+  sections.push({
+    type: "process",
+    headline: booking ? "Book in three simple steps" : "How it works",
+    items: [
+      {
+        title: "Choose your service",
+        description: `Pick from ${name}'s services with clear prices and durations.`,
+      },
+      {
+        title: booking ? "Reserve your slot" : "Reach out",
+        description: booking
+          ? "Book online in minutes — we confirm your appointment quickly."
+          : `Contact us via ${o.mainGoal.preferredContact.toLowerCase()} to get started.`,
+      },
+      {
+        title: "Enjoy the experience",
+        description: `Visit us${o.basics.city ? ` in ${o.basics.city}` : ""} for a professional, premium experience.`,
+      },
+    ],
+  });
+
+  const whyBody = [
+    o.targetAudience.careAbout?.trim(),
+    o.targetAudience.problems ? `We solve: ${o.targetAudience.problems}` : "",
+    o.branding.mood ? `Experience: ${o.branding.mood}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  sections.push({
+    type: "cta",
+    headline: `Why choose ${name}`,
+    body:
+      whyBody ||
+      `${name} combines skilled service, transparent pricing, and a polished client experience${o.basics.city ? ` in ${o.basics.city}` : ""}.`,
+    primaryCta,
+    secondaryCta,
+    imageUrl: teamAsset?.previewDataUrl?.trim() ?? "",
+  });
 
   if (hasFeature(extra, "Before/after section")) {
     sections.push({
@@ -362,8 +436,8 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
     pages: [{ slug: "home", title: "Home", sections }],
     conversionPlan: {
       mainGoal: o.mainGoal.primary,
-      primaryCta: o.mainGoal.primaryCta || "Get in touch",
-      secondaryCta: o.mainGoal.secondaryCta || "",
+      primaryCta,
+      secondaryCta,
       trackingEvents: extra.filter((x) =>
         ["Contact form", "Booking button", "WhatsApp button", "Sticky mobile CTA"].includes(x),
       ),
@@ -414,7 +488,7 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
     extraFeatures: extra,
   };
 
-  return parseWebsiteBlueprint(raw);
+  return finalizeLandingPageBlueprint(parseWebsiteBlueprint(raw), o);
 }
 
 function buildStructuredPrompts(o: OnboardingPayload, heroPrompt: string) {

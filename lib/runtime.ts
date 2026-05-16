@@ -36,8 +36,8 @@ export function isDemoDeploy(): boolean {
 }
 
 export function hasOpenAiKey(): boolean {
-  const key = process.env.OPENAI_API_KEY?.trim();
-  return Boolean(key && key.length > 10);
+  const key = process.env.OPENAI_API_KEY?.trim().replace(/\r/g, "");
+  return Boolean(key && key.length > 10 && key !== "PASTE_OPENAI_KEY_HERE");
 }
 
 /** Use deterministic mock builder instead of OpenAI (NEXT_PUBLIC_DEMO_MODE=1 only). */

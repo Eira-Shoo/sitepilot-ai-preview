@@ -14,7 +14,7 @@ import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { saveDemoDraft } from "@/lib/demo-session";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 import { GenerationEnvironmentPanel } from "@/components/builder/generation-environment-panel";
-import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-config";
+import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
 import { toast } from "sonner";
 import {
   AUDIENCE_FEEL_TAGS,

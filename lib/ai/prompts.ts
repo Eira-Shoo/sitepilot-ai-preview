@@ -17,6 +17,11 @@ You MUST output a single JSON object: a complete SitePilot "website blueprint".
 ## CRITICAL: Use the customer's real questionnaire data (never generic placeholders)
 - Use basics.businessName exactly in business.name, navbar.logoText, and hero (not "Your business").
 - NEVER use generic service names like "Signature offering", "Service 1", or "Your service".
+- NEVER use weak placeholder words like "test", "lorem", or "Collect leads" as the hero headline.
+- Hero headline format: "[Premium] {industry} in {city}" when city is known (e.g. "Premium Barber Studio in Hamburg").
+- If mainGoal is bookings: primaryCta = "Book an appointment", secondaryCta = "View services".
+- trust.items MUST be plain strings (not objects). contact.formFields MUST be plain strings.
+- Every section must have substantive copy — no empty headlines or filler paragraphs.
 - If offers.services lists names/prices/durations, EVERY provided service MUST appear in the services section with the SAME name and price/duration.
 - If packages or service prices exist, show them in services and/or pricing sections — do not hide pricing.
 - If basics.city and basics.country exist, mention them in hero, map, contact, and seo.localSeoText.
@@ -42,14 +47,14 @@ You MUST output a single JSON object: a complete SitePilot "website blueprint".
 Include every section that fits the onboarding data:
 1. navbar — logoText, links to #anchors
 2. hero — headline, subheadline, primaryCta, secondaryCta, imagePrompt (and imageUrl only if onboarding media provides a data URL)
-3. trust — headline + bullet items from trust.* and guarantees
+3. trust — headline + items: array of plain strings (one bullet per item, NOT objects)
 4. services — all offers.services with name, description, price, duration, cta
 5. pricing — if packages.visibility allows pricing cards and package items exist
 6. gallery — if Gallery feature selected or gallery media exists
 7. testimonials — ONLY if real testimonial text exists in onboarding; otherwise omit or empty items
 8. faq — if FAQ feature selected; 3–6 Q&As relevant to industry
 9. map — if localBusiness.showMap and address/service area exist
-10. contact — headline + formFields
+10. contact — headline + formFields: array of plain strings (e.g. "name", "email", "message")
 11. footer — tagline + legal links (#privacy, #terms)
 12. cta — optional mid-page conversion block aligned with mainGoal
 
@@ -106,7 +111,11 @@ export function buildBlueprintRepairPrompt(validationIssues: string): string {
 
 Validation issues: ${validationIssues}
 
-Remember: pages[0].slug = "home", valid section types only, no code, no fake testimonials.`;
+Schema reminders:
+- trust.items and contact.formFields MUST be string arrays (not objects).
+- seo.keywords and conversionPlan.trackingEvents MUST be string arrays.
+- Service/pricing item fields (name, price, duration) MUST be strings, not nested objects.
+- pages[0].slug = "home", valid section types only, no code, no fake testimonials.`;
 }
 
 export function buildEditBlueprintPrompt(instruction: string): string {

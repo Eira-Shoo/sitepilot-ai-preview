@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeOpenAiBlueprintPayload } from "@/lib/blueprint/normalize-openai-blueprint";
 
 const serviceItemSchema = z.object({
   name: z.string().optional().default(""),
@@ -92,11 +93,28 @@ const servicesSectionSchema = z
     items: normalizeServiceItems(s.items),
   }));
 
-const trustSectionSchema = z.object({
-  type: z.literal("trust"),
-  headline: z.string().optional().default(""),
-  items: z.array(z.string()).optional().default([]),
-});
+function normalizeTrustItems(items: unknown): string[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      const o = item as Record<string, unknown>;
+      return String(o.text ?? o.label ?? o.title ?? o.name ?? o.value ?? "").trim();
+    }
+    return String(item ?? "").trim();
+  }).filter(Boolean);
+}
+
+const trustSectionSchema = z
+  .object({
+    type: z.literal("trust"),
+    headline: z.string().optional().default(""),
+    items: z.array(z.unknown()).optional().default([]),
+  })
+  .transform((s) => ({
+    ...s,
+    items: normalizeTrustItems(s.items),
+  }));
 
 const testimonialsSectionSchema = z.object({
   type: z.literal("testimonials"),
@@ -110,11 +128,28 @@ const faqSectionSchema = z.object({
   items: z.array(faqItemSchema).optional().default([]),
 });
 
-const contactSectionSchema = z.object({
-  type: z.literal("contact"),
-  headline: z.string().optional().default(""),
-  formFields: z.array(z.string()).optional().default([]),
-});
+function normalizeFormFields(fields: unknown): string[] {
+  if (!Array.isArray(fields)) return [];
+  return fields.map((f) => {
+    if (typeof f === "string") return f;
+    if (f && typeof f === "object") {
+      const o = f as Record<string, unknown>;
+      return String(o.name ?? o.label ?? o.type ?? o.field ?? o.id ?? "field");
+    }
+    return String(f ?? "field");
+  });
+}
+
+const contactSectionSchema = z
+  .object({
+    type: z.literal("contact"),
+    headline: z.string().optional().default(""),
+    formFields: z.array(z.unknown()).optional().default([]),
+  })
+  .transform((s) => ({
+    ...s,
+    formFields: normalizeFormFields(s.formFields),
+  }));
 
 const mapSectionSchema = z.object({
   type: z.literal("map"),
@@ -416,10 +451,14 @@ export const websiteBlueprintSchema = z.object({
 export type WebsiteBlueprint = z.infer<typeof websiteBlueprintSchema>;
 export type BlueprintSection = WebsiteBlueprint["pages"][number]["sections"][number];
 
+function prepareBlueprintInput(data: unknown): unknown {
+  return normalizeOpenAiBlueprintPayload(data);
+}
+
 export function parseWebsiteBlueprint(data: unknown): WebsiteBlueprint {
-  return websiteBlueprintSchema.parse(data);
+  return websiteBlueprintSchema.parse(prepareBlueprintInput(data));
 }
 
 export function safeParseWebsiteBlueprint(data: unknown) {
-  return websiteBlueprintSchema.safeParse(data);
+  return websiteBlueprintSchema.safeParse(prepareBlueprintInput(data));
 }

@@ -1,10 +1,15 @@
-import { hasOpenAiKey, isPublicDemoMode } from "@/lib/runtime";
+import { isPublicDemoMode } from "@/lib/runtime";
+import { openAiKeySuffix, resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
+import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
 
 export type GenerationSource = "openai" | "mock";
 export type GenerationConfigState = "mock" | "openai" | "unconfigured";
 
-export const OPENAI_KEY_MISSING_MESSAGE =
-  "OpenAI API key is missing. Add OPENAI_API_KEY or enable demo mode.";
+export { OPENAI_KEY_MISSING_MESSAGE };
+
+function hasResolvedOpenAiKey(): boolean {
+  return Boolean(resolveOpenAiApiKey());
+}
 
 /** NEXT_PUBLIC_DEMO_MODE=1 → always mock. */
 export function isMockGenerationForced(): boolean {
@@ -13,12 +18,12 @@ export function isMockGenerationForced(): boolean {
 
 /** Server-only: whether OpenAI can run (demo off + key present). */
 export function canUseOpenAiGeneration(): boolean {
-  return !isMockGenerationForced() && hasOpenAiKey();
+  return !isMockGenerationForced() && hasResolvedOpenAiKey();
 }
 
 export function getGenerationConfigState(): GenerationConfigState {
   if (isMockGenerationForced()) return "mock";
-  if (hasOpenAiKey()) return "openai";
+  if (hasResolvedOpenAiKey()) return "openai";
   return "unconfigured";
 }
 
@@ -44,7 +49,8 @@ export function logGenerationConfigOnce(): void {
   const source = state === "openai" ? "openai" : state === "mock" ? "mock" : "unconfigured";
   console.log("[SitePilot] Generation config:", {
     demoMode: isPublicDemoMode(),
-    openaiKeyDetected: hasOpenAiKey(),
+    openaiKeyDetected: hasResolvedOpenAiKey(),
+    keySuffix: openAiKeySuffix(),
     expectedSource: source,
   });
 }
@@ -52,7 +58,8 @@ export function logGenerationConfigOnce(): void {
 export function getPublicGenerationStatus() {
   return {
     demoMode: isPublicDemoMode(),
-    openaiKeyDetected: hasOpenAiKey(),
+    openaiKeyDetected: hasResolvedOpenAiKey(),
+    keySuffix: openAiKeySuffix(),
     configState: getGenerationConfigState(),
     expectedSource: getExpectedGenerationSource(),
   };

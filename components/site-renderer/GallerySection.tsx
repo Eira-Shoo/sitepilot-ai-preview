@@ -1,19 +1,25 @@
 import type { BlueprintSection } from "@/lib/validators/website-blueprint";
-import { Card, CardContent } from "@/components/ui/card";
+import { VisualPlaceholder } from "./VisualPlaceholder";
 
 type G = Extract<BlueprintSection, { type: "gallery" }>;
 type GalleryItem = { imagePrompt: string; caption: string; imageUrl: string };
 
 export function GallerySection({ section }: { section: G }) {
   return (
-    <section className="border-y border-border/60 py-16">
+    <section id="gallery" className="border-y border-border/60 py-16 lg:py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <h2 className="text-center text-3xl font-semibold tracking-tight">
-          {section.headline}
-        </h2>
-        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-[var(--sp-secondary,#c9a227)]">
+            Gallery
+          </p>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight">{section.headline}</h2>
+        </div>
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {section.items.map((item: GalleryItem, i: number) => (
-            <Card key={i} className="overflow-hidden rounded-2xl border-border/60">
+            <article
+              key={i}
+              className="overflow-hidden rounded-2xl border border-border/60 bg-card/80 shadow-sm"
+            >
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -22,21 +28,17 @@ export function GallerySection({ section }: { section: G }) {
                   className="aspect-[4/3] w-full object-cover"
                 />
               ) : (
-                <div className="flex aspect-[4/3] items-end bg-gradient-to-br from-primary/20 via-secondary/10 to-accent/20 p-4">
-                  {item.imagePrompt ? (
-                    <p className="text-xs text-muted-foreground">Image direction: {item.imagePrompt}</p>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">Visual placeholder</span>
-                  )}
-                </div>
+                <VisualPlaceholder
+                  imagePrompt={item.imagePrompt}
+                  label="Gallery"
+                  aspectClass="aspect-[4/3]"
+                  className="rounded-none border-0"
+                />
               )}
-              <CardContent className="p-4">
-                {!item.imageUrl && item.imagePrompt ? (
-                  <p className="text-xs text-muted-foreground">{item.imagePrompt}</p>
-                ) : null}
-                {item.caption ? <p className="mt-2 text-sm font-medium">{item.caption}</p> : null}
-              </CardContent>
-            </Card>
+              {item.caption ? (
+                <p className="border-t border-border/40 px-4 py-3 text-sm font-medium">{item.caption}</p>
+              ) : null}
+            </article>
           ))}
         </div>
       </div>

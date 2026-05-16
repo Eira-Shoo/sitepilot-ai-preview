@@ -7,6 +7,7 @@ import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-bl
 type Status = {
   demoMode: boolean;
   openaiKeyDetected: boolean;
+  keySuffix: string | null;
   configState: "mock" | "openai" | "unconfigured";
   expectedSource: "openai" | "mock" | null;
 };
@@ -51,7 +52,11 @@ export function GenerationEnvironmentPanel({
           <li>
             OpenAI key detected:{" "}
             <span className="text-foreground">
-              {status ? (status.openaiKeyDetected ? "yes" : "no") : "…"}
+              {status
+                ? status.openaiKeyDetected
+                  ? `yes${status.keySuffix ? ` (…${status.keySuffix})` : ""}`
+                  : "no"
+                : "…"}
             </span>
           </li>
           <li>

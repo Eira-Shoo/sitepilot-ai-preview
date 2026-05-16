@@ -1,19 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { AppChrome } from "@/components/marketing/app-chrome";
 import { DemoRibbon } from "@/components/marketing/demo-ribbon";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -35,9 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen font-sans`}
-      >
+      <body className="min-h-screen font-sans antialiased">
         <AppChrome>{children}</AppChrome>
         <DemoRibbon />
         <Toaster richColors position="top-center" />

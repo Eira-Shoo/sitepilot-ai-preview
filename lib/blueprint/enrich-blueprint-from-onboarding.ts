@@ -1,6 +1,7 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { finalizeLandingPageBlueprint } from "@/lib/blueprint/finalize-landing-page";
 
 function sectionByType<T extends WebsiteBlueprint["pages"][number]["sections"][number]["type"]>(
   blueprint: WebsiteBlueprint,
@@ -179,5 +180,5 @@ export function enrichBlueprintFromOnboarding(
     if (map) merged.pages[0].sections.push(map);
   }
 
-  return merged;
+  return finalizeLandingPageBlueprint(merged, onboarding);
 }

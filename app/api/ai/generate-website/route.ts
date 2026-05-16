@@ -14,6 +14,7 @@ import {
   createBlueprintFromOnboarding,
   OpenAiGenerationError,
 } from "@/lib/openai/generate-website-blueprint";
+import { applyDevOpenAiKeyFromEnvLocal } from "@/lib/openai/resolve-api-key";
 
 const bodySchema = z.object({
   onboarding: onboardingSchema,
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
   const previewDeploy = isDemoDeploy();
   const allowMockFallback = isPublicDemoMode();
 
+  applyDevOpenAiKeyFromEnvLocal();
   logGenerationConfigOnce();
 
   if (getGenerationConfigState() === "unconfigured") {
@@ -123,9 +125,9 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: e.message,
-          code: "openai_generation_failed",
+          code: e.code,
         },
-        { status: 502 },
+        { status: e.statusCode },
       );
     }
     return NextResponse.json({ error: "Generation failed" }, { status: 500 });
