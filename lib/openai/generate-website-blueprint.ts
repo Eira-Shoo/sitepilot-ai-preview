@@ -125,7 +125,7 @@ async function parseAndEnrich(
 ): Promise<WebsiteBlueprint> {
   let current = parsed;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const issues = formatValidationIssues(current);
     if (!issues) {
       return enrichBlueprintFromOnboarding(
@@ -133,7 +133,7 @@ async function parseAndEnrich(
         onboarding,
       );
     }
-    if (attempt === 2) {
+    if (attempt === 1) {
       throw new OpenAiGenerationError(`Blueprint validation failed: ${issues}`);
     }
     current = await requestBlueprintJson(

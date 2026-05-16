@@ -11,7 +11,7 @@ You MUST output a single JSON object: a complete SitePilot "website blueprint".
 - Never invent fake testimonials, reviews, awards, certifications, or misleading claims.
 - If facts are missing, use neutral copy and empty arrays — do NOT fabricate social proof.
 - All customer-facing copy must match the onboarding language (basics.language).
-- Colors must be hex (#RRGGBB). Use branding.colorsPreferred and websiteStyle for brand.brand colors.
+- Colors must be hex (#RRGGBB). Use branding.colorsPreferred and branding.preferredWebsiteStyle[] for brand colors.
 - pages[0].slug MUST be "home" with a full sections array rendered by our safe components only.
 
 ## CRITICAL: Use the customer's real questionnaire data (never generic placeholders)
@@ -26,7 +26,9 @@ You MUST output a single JSON object: a complete SitePilot "website blueprint".
 - If packages or service prices exist, show them in services and/or pricing sections — do not hide pricing.
 - If basics.city and basics.country exist, mention them in hero, map, contact, and seo.localSeoText.
 - If mainGoal.primary mentions bookings, CTAs must be booking-focused (e.g. "Book now", "Reserve") — NOT generic "Get in touch" or "Collect leads".
-- Reflect branding.websiteStyle, branding.colorsPreferred, branding.mood in brand.* and copy tone.
+- branding.preferredWebsiteStyle is an ARRAY (e.g. ["Premium","Dark","Local/trustworthy"]) — combine all into layout, contrast, and visual style (premium + dark + local trust cues).
+- branding.websiteMood is an ARRAY (e.g. ["Trustworthy","Premium"]) — reflect in hero, trust badges, copy tone, and CTAs.
+- Reflect branding.colorsPreferred in brand.primaryColor/secondaryColor (e.g. black + gold for barber premium).
 - Use seo.mainKeyword and seo.secondaryKeywords in seo.keywords and copy where natural.
 - trust.yearsExperience, trust.guarantees, etc. must appear in the trust section when provided.
 - testimonials: ONLY if onboarding trust.testimonials has real text; otherwise omit section or items: [].
@@ -83,7 +85,7 @@ PRIORITY ORDER (must follow):
 1. offers.services — copy each service name, startingPrice, duration, description into services section items
 2. mainGoal — booking/lead goal drives hero + conversionPlan CTAs
 3. basics.businessName, industry, description, city, country
-4. branding colors/style/mood → brand object
+4. branding.preferredWebsiteStyle[] + websiteMood[] + colorsPreferred → brand object and tone
 5. seo keywords → seo object and natural copy
 6. trust fields → trust section bullets
 7. localBusiness → map + contact

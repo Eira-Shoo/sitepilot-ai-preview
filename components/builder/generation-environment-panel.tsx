@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
+import type { GenerationApiFailure } from "@/lib/ai/generation-api-response";
 
 type Status = {
   demoMode: boolean;
@@ -21,8 +22,10 @@ const SHOW_PANEL =
 
 export function GenerationEnvironmentPanel({
   lastSource,
+  lastError,
 }: {
   lastSource?: BlueprintGenerationSource | null;
+  lastError?: GenerationApiFailure | null;
 }) {
   const [status, setStatus] = useState<Status | null>(null);
 
@@ -77,21 +80,29 @@ export function GenerationEnvironmentPanel({
               <span className="font-semibold text-foreground">{lastSource}</span>
             </li>
           ) : null}
+          {lastError ? (
+            <li className="text-red-400">
+              Last error: [{lastError.error}] {lastError.message}
+            </li>
+          ) : null}
         </ul>
         {readyForOpenAi ? (
           <p className="text-emerald-400">Ready for real OpenAI generation.</p>
         ) : null}
         {status?.demoMode ? (
           <p className="text-amber-400">
-            Set NEXT_PUBLIC_DEMO_MODE=0 in .env.local (local) or Vercel env, then restart dev /
-            redeploy.
+            Set NEXT_PUBLIC_DEMO_MODE=0 in .env.local or Vercel, then restart / redeploy.
           </p>
         ) : null}
         {status && !status.demoMode && !status.openaiKeyDetected ? (
           <p className="text-amber-400">
-            Add OPENAI_API_KEY to .env.local, remove any old Windows system variable with the same
-            name, restart npm run dev, and open the same port as NEXT_PUBLIC_APP_URL.
+            Add OPENAI_API_KEY or set NEXT_PUBLIC_DEMO_MODE=1 for mock generation.
           </p>
+        ) : null}
+        {lastError?.details && process.env.NODE_ENV === "development" ? (
+          <pre className="mt-2 max-h-32 overflow-auto rounded-lg border border-border/60 bg-background/80 p-2 text-[10px] text-red-300/90">
+            {lastError.details}
+          </pre>
         ) : null}
       </CardContent>
     </Card>

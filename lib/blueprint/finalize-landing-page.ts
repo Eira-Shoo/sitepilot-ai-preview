@@ -1,6 +1,7 @@
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { buildWebsiteBlueprintFromOnboarding } from "@/lib/blueprint/build-from-onboarding";
+import { brandingCombinedForColors } from "@/lib/onboarding/branding-helpers";
 
 const SECTION_ORDER: WebsiteBlueprint["pages"][number]["sections"][number]["type"][] = [
   "navbar",
@@ -67,7 +68,7 @@ function bookingCtas(o: OnboardingPayload) {
 function buildHeroCopy(o: OnboardingPayload, businessName: string) {
   const city = o.basics.city?.trim();
   const industry = o.basics.industry?.trim() || "business";
-  const combined = `${o.branding.websiteStyle} ${o.branding.colorsPreferred}`.toLowerCase();
+  const combined = brandingCombinedForColors(o.branding).toLowerCase();
   const premium =
     combined.includes("premium") ||
     combined.includes("luxury") ||

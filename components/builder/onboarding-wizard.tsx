@@ -9,7 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OnboardingPayload } from "@/lib/validators/onboarding";
-import { defaultOnboardingPayload } from "@/lib/validators/onboarding";
+import { defaultOnboardingPayload, onboardingSchema } from "@/lib/validators/onboarding";
+import { toggleArrayValue } from "@/lib/onboarding/branding-helpers";
+import type { GenerationApiFailure } from "@/lib/ai/generation-api-response";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { saveDemoDraft } from "@/lib/demo-session";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
@@ -42,6 +44,12 @@ const IS_DEMO_CLIENT =
 
 const OPTIONAL_STEPS = new Set([7, 8, 9, 12]);
 
+function styleChipClass(selected: boolean) {
+  return selected
+    ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/40"
+    : "border-border/60 bg-muted/30 text-muted-foreground hover:border-primary/40";
+}
+
 function newId() {
   return globalThis.crypto?.randomUUID?.() ?? `m-${Math.random().toString(36).slice(2)}`;
 }
@@ -68,14 +76,25 @@ export function OnboardingWizard() {
   const [payload, setPayload] = useState<OnboardingPayload>(() => defaultOnboardingPayload());
   const [lastGenerationSource, setLastGenerationSource] =
     useState<BlueprintGenerationSource | null>(null);
+  const [lastGenerationError, setLastGenerationError] = useState<GenerationApiFailure | null>(
+    null,
+  );
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     try {
       const parsed = JSON.parse(raw) as { step: number; payload: OnboardingPayload };
+      const merged = onboardingSchema.safeParse({
+        ...defaultOnboardingPayload(),
+        ...parsed.payload,
+        branding: {
+          ...defaultOnboardingPayload().branding,
+          ...parsed.payload.branding,
+        },
+      });
       setStep(parsed.step ?? 1);
-      setPayload(parsed.payload);
+      if (merged.success) setPayload(merged.data);
     } catch {
       /* ignore */
     }
@@ -170,38 +189,53 @@ export function OnboardingWizard() {
     }
 
     setLoading(true);
+    setLastGenerationError(null);
     try {
       const res = await fetch("/api/ai/generate-website", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ onboarding: payload }),
       });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        details?: string;
+        code?: string;
+        projectId?: string;
+        blueprint?: WebsiteBlueprint;
+        source?: BlueprintGenerationSource;
+      };
+
       if (res.status === 401) {
         setLoading(false);
         toast.message("Log in to save your draft", { description: "Redirecting…" });
         router.push(`/login?next=${encodeURIComponent("/create")}`);
         return;
       }
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
-        const message = err.error ?? "Failed";
-        if (err.code === "openai_key_missing") {
-          toast.error(message);
-          return;
-        }
-        throw new Error(message);
+
+      if (!res.ok || json.ok === false) {
+        const failure: GenerationApiFailure = {
+          ok: false,
+          error: json.error ?? json.code ?? "generation_failed",
+          message:
+            json.message ??
+            (typeof json.error === "string" ? json.error : "Could not generate website draft."),
+          details: json.details,
+        };
+        setLastGenerationError(failure);
+        console.error("[SitePilot] Generation failed:", failure);
+        toast.error(failure.message);
+        return;
       }
-      const json = (await res.json()) as {
-        projectId: string;
-        blueprint?: WebsiteBlueprint;
-        source?: BlueprintGenerationSource;
-      };
+
       const source: BlueprintGenerationSource = json.source === "openai" ? "openai" : "mock";
       if (process.env.NODE_ENV === "development") {
         console.log("Generation source:", source);
       }
       setLastGenerationSource(source);
-      if (json.blueprint) saveDemoDraft(json.blueprint, source);
+      setLastGenerationError(null);
+      if (json.blueprint && json.projectId) saveDemoDraft(json.blueprint, source);
       localStorage.removeItem(STORAGE_KEY);
       toast.success(
         source === "openai" ? "AI draft ready (OpenAI)" : "Draft ready (demo builder)",
@@ -209,8 +243,15 @@ export function OnboardingWizard() {
       router.push(`/dashboard/projects/${json.projectId}`);
       router.refresh();
     } catch (e) {
-      console.error(e);
-      toast.error("Could not generate. Try again.");
+      const message = e instanceof Error ? e.message : "Could not generate website draft.";
+      const failure: GenerationApiFailure = {
+        ok: false,
+        error: "network_error",
+        message,
+      };
+      setLastGenerationError(failure);
+      console.error("[SitePilot] Generation request failed:", e);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -283,7 +324,10 @@ export function OnboardingWizard() {
       </p>
 
       <div className="mt-4">
-        <GenerationEnvironmentPanel lastSource={lastGenerationSource} />
+        <GenerationEnvironmentPanel
+          lastSource={lastGenerationSource}
+          lastError={lastGenerationError}
+        />
       </div>
 
       <div className="mt-6 h-2 overflow-hidden rounded-full bg-muted">
@@ -869,22 +913,32 @@ export function OnboardingWizard() {
 
           {step === 6 && (
             <StepGrid>
-              <Field label="Preferred website style" className="md:col-span-2">
+              <Field label="Preferred website style (select all that apply)" className="md:col-span-2">
                 <div className="flex flex-wrap gap-2">
-                  {WEBSITE_STYLES.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() =>
-                        setPayload((p) => ({ ...p, branding: { ...p.branding, websiteStyle: s } }))
-                      }
-                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
-                        payload.branding.websiteStyle === s ? "border-primary bg-primary/10" : "border-border/60"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {WEBSITE_STYLES.map((s) => {
+                    const selected = payload.branding.preferredWebsiteStyle.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            branding: {
+                              ...p.branding,
+                              preferredWebsiteStyle: toggleArrayValue(
+                                p.branding.preferredWebsiteStyle,
+                                s,
+                              ),
+                            },
+                          }))
+                        }
+                        className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs transition-colors ${styleChipClass(selected)}`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
                 </div>
               </Field>
               <Field label="Preferred colors">
@@ -927,20 +981,29 @@ export function OnboardingWizard() {
                   ))}
                 </div>
               </Field>
-              <Field label="Website mood">
+              <Field label="Website mood (select all that apply)">
                 <div className="flex flex-wrap gap-2">
-                  {WEBSITE_MOODS.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setPayload((p) => ({ ...p, branding: { ...p.branding, mood: m } }))}
-                      className={`cursor-pointer rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/50 ${
-                        payload.branding.mood === m ? "border-primary bg-primary/10" : "border-border/60"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                  {WEBSITE_MOODS.map((m) => {
+                    const selected = payload.branding.websiteMood.includes(m);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() =>
+                          setPayload((p) => ({
+                            ...p,
+                            branding: {
+                              ...p.branding,
+                              websiteMood: toggleArrayValue(p.branding.websiteMood, m),
+                            },
+                          }))
+                        }
+                        className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs transition-colors ${styleChipClass(selected)}`}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
                 </div>
               </Field>
               <Field label="Inspiration URLs (optional)" className="md:col-span-2">
@@ -1766,7 +1829,16 @@ export function OnboardingWizard() {
 
                 <SummaryCard title="Branding">
                   <p>
-                    Style: {payload.branding.websiteStyle} · Mood: {payload.branding.mood}
+                    Style:{" "}
+                    {payload.branding.preferredWebsiteStyle.length
+                      ? payload.branding.preferredWebsiteStyle.join(", ")
+                      : "—"}
+                  </p>
+                  <p>
+                    Mood:{" "}
+                    {payload.branding.websiteMood.length
+                      ? payload.branding.websiteMood.join(", ")
+                      : "—"}
                   </p>
                   <p>Colors: {payload.branding.colorsPreferred || "—"}</p>
                   <p>Avoid: {payload.branding.colorsAvoid || "—"}</p>
@@ -1834,6 +1906,24 @@ export function OnboardingWizard() {
                   <p className="text-xs">{payload.extraFeatures.join(", ") || "—"}</p>
                 </SummaryCard>
               </div>
+
+              {lastGenerationError ? (
+                <div
+                  className="rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-sm"
+                  role="alert"
+                >
+                  <p className="font-semibold text-destructive">Website generation failed</p>
+                  <p className="mt-1 text-foreground">{lastGenerationError.message}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Code: {lastGenerationError.error}
+                  </p>
+                  {lastGenerationError.details && process.env.NODE_ENV === "development" ? (
+                    <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-border/60 bg-background/80 p-2 text-xs text-muted-foreground">
+                      {lastGenerationError.details}
+                    </pre>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap gap-2">
                 <Button

@@ -6,9 +6,14 @@ import { rateLimit } from "@/lib/rate-limit";
 import { isDemoDeploy, isPublicDemoMode } from "@/lib/runtime";
 import {
   getGenerationConfigState,
+  getPublicGenerationStatus,
   logGenerationConfigOnce,
-  OPENAI_KEY_MISSING_MESSAGE,
 } from "@/lib/ai/generation-config";
+import { OPENAI_KEY_MISSING_MESSAGE } from "@/lib/ai/generation-messages";
+import {
+  generationFailureBody,
+  generationSuccessBody,
+} from "@/lib/ai/generation-api-response";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import {
   createBlueprintFromOnboarding,
@@ -21,31 +26,79 @@ const bodySchema = z.object({
   projectId: z.string().uuid().optional(),
 });
 
+function logGenerationContext(label: string, extra?: Record<string, unknown>) {
+  const status = getPublicGenerationStatus();
+  console.log(`[SitePilot] ${label}`, {
+    demoMode: status.demoMode,
+    openaiKeyDetected: status.openaiKeyDetected,
+    keySuffix: status.keySuffix,
+    expectedSource: status.expectedSource,
+    configState: status.configState,
+    ...extra,
+  });
+}
+
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") ?? "local";
   const rl = rateLimit(`ai-gen:${ip}`, 8, 60 * 60 * 1000);
   if (!rl.ok) {
-    return NextResponse.json({ error: "Rate limited" }, { status: 429 });
+    const { body, status } = generationFailureBody(
+      "rate_limited",
+      "Too many generation requests. Please wait and try again.",
+      { status: 429 },
+    );
+    return NextResponse.json(body, { status });
   }
 
-  const json = await request.json();
+  applyDevOpenAiKeyFromEnvLocal();
+  logGenerationConfigOnce();
+
+  let json: unknown;
+  try {
+    json = await request.json();
+  } catch (e) {
+    logGenerationContext("Invalid JSON body", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    const { body, status } = generationFailureBody(
+      "invalid_json",
+      "Invalid request body.",
+      { status: 400 },
+    );
+    return NextResponse.json(body, { status });
+  }
+
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".")}: ${i.message}`)
+      .join("; ");
+    logGenerationContext("Onboarding validation failed", { zodIssues: issues });
+    const { body, status } = generationFailureBody(
+      "invalid_payload",
+      "Invalid questionnaire data. Check required fields and try again.",
+      { details: issues, status: 400 },
+    );
+    return NextResponse.json(body, { status });
   }
 
   const { onboarding, projectId } = parsed.data;
   const previewDeploy = isDemoDeploy();
   const allowMockFallback = isPublicDemoMode();
 
-  applyDevOpenAiKeyFromEnvLocal();
-  logGenerationConfigOnce();
+  logGenerationContext("Generate request", {
+    businessName: onboarding.basics.businessName,
+    allowMockFallback,
+    previewDeploy,
+  });
 
   if (getGenerationConfigState() === "unconfigured") {
-    return NextResponse.json(
-      { error: OPENAI_KEY_MISSING_MESSAGE, code: "openai_key_missing" },
+    const { body, status } = generationFailureBody(
+      "openai_key_missing",
+      OPENAI_KEY_MISSING_MESSAGE,
       { status: 503 },
     );
+    return NextResponse.json(body, { status });
   }
 
   try {
@@ -53,24 +106,38 @@ export async function POST(request: Request) {
       allowMockFallback,
     });
 
+    logGenerationContext("Generate success", { source });
+
     if (previewDeploy) {
-      return NextResponse.json({
-        blueprint,
-        projectId: DEMO_PROJECT_ID,
-        source,
-      });
+      return NextResponse.json(
+        generationSuccessBody({
+          blueprint,
+          projectId: DEMO_PROJECT_ID,
+          source,
+        }),
+      );
     }
 
     const supabase = await createClient();
     if (!supabase) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+      const { body, status } = generationFailureBody(
+        "server_misconfigured",
+        "Server is not configured for saving projects.",
+        { status: 500 },
+      );
+      return NextResponse.json(body, { status });
     }
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      const { body, status } = generationFailureBody(
+        "unauthorized",
+        "Please log in to save your website draft.",
+        { status: 401 },
+      );
+      return NextResponse.json(body, { status });
     }
 
     if (projectId) {
@@ -94,7 +161,9 @@ export async function POST(request: Request) {
         form_data: onboarding,
         google_place_data: onboarding.localBusiness.placeDetails ?? null,
       });
-      return NextResponse.json({ blueprint, projectId, source });
+      return NextResponse.json(
+        generationSuccessBody({ blueprint, projectId, source }),
+      );
     }
 
     const { data: project, error: pErr } = await supabase
@@ -118,18 +187,43 @@ export async function POST(request: Request) {
       google_place_data: onboarding.localBusiness.placeDetails ?? null,
     });
 
-    return NextResponse.json({ blueprint, projectId: project.id, source });
+    return NextResponse.json(
+      generationSuccessBody({ blueprint, projectId: project.id, source }),
+    );
   } catch (e) {
-    console.error(e);
+    const errMessage = e instanceof Error ? e.message : String(e);
+    const errStack = e instanceof Error ? e.stack : undefined;
+
     if (e instanceof OpenAiGenerationError) {
-      return NextResponse.json(
-        {
-          error: e.message,
-          code: e.code,
-        },
-        { status: e.statusCode },
-      );
+      logGenerationContext("OpenAI generation failed", {
+        code: e.code,
+        message: errMessage,
+        cause: e.cause instanceof Error ? e.cause.message : undefined,
+      });
+      const { body, status } = generationFailureBody(e.code, e.message, {
+        details: errStack,
+        status: e.statusCode,
+      });
+      return NextResponse.json(body, { status });
     }
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+
+    if (e instanceof z.ZodError) {
+      const issues = e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      logGenerationContext("Blueprint Zod validation failed", { zodIssues: issues });
+      const { body, status } = generationFailureBody(
+        "blueprint_validation_failed",
+        "Could not generate website draft — the AI response did not match the required structure.",
+        { details: issues, status: 502 },
+      );
+      return NextResponse.json(body, { status });
+    }
+
+    console.error("[SitePilot] Generation failed:", errMessage, errStack);
+    const { body, status } = generationFailureBody(
+      "generation_failed",
+      "Could not generate website draft. Please try again.",
+      { details: errMessage, status: 500 },
+    );
+    return NextResponse.json(body, { status });
   }
 }

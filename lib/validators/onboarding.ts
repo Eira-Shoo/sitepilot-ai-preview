@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { coerceStringArray } from "@/lib/onboarding/branding-helpers";
 
 const socialSchema = z.object({
   instagram: z.string().optional().default(""),
@@ -81,15 +82,28 @@ export const onboardingSchema = z.object({
     visibility: z.string().optional().default("Not sure, let AI suggest"),
     items: z.array(packageCardSchema).optional().default([]),
   }),
-  branding: z.object({
-    websiteStyle: z.string().optional().default("Modern SaaS"),
+  branding: z.preprocess((raw) => {
+    if (!raw || typeof raw !== "object") return raw;
+    const b = { ...(raw as Record<string, unknown>) };
+    if (b.preferredWebsiteStyle == null && b.websiteStyle != null) {
+      b.preferredWebsiteStyle = b.websiteStyle;
+    }
+    if (b.websiteMood == null && b.mood != null) {
+      b.websiteMood = b.mood;
+    }
+    return b;
+  }, z.object({
+    preferredWebsiteStyle: z
+      .preprocess(coerceStringArray, z.array(z.string()))
+      .optional()
+      .default([]),
+    websiteMood: z.preprocess(coerceStringArray, z.array(z.string())).optional().default([]),
     colorsPreferred: z.string().optional().default(""),
     colorsAvoid: z.string().optional().default(""),
     fontStyle: z.string().optional().default("Modern"),
-    mood: z.string().optional().default("Trustworthy"),
     inspirationUrls: z.string().optional().default(""),
     notes: z.string().optional().default(""),
-  }),
+  })),
   media: z.object({
     assets: z.array(mediaAssetSchema).optional().default([]),
   }),
@@ -197,11 +211,11 @@ export function defaultOnboardingPayload(): OnboardingPayload {
       items: [],
     },
     branding: {
-      websiteStyle: "Modern SaaS",
+      preferredWebsiteStyle: ["Modern"],
+      websiteMood: ["Trustworthy"],
       colorsPreferred: "",
       colorsAvoid: "",
       fontStyle: "Modern",
-      mood: "Trustworthy",
       inspirationUrls: "",
       notes: "",
     },

@@ -2,6 +2,11 @@ import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { finalizeLandingPageBlueprint } from "@/lib/blueprint/finalize-landing-page";
+import {
+  brandingCombinedForColors,
+  brandingMoodText,
+  brandingStyleText,
+} from "@/lib/onboarding/branding-helpers";
 
 function hasFeature(extra: string[], label: string) {
   return extra.some((e) => e.toLowerCase() === label.toLowerCase());
@@ -24,7 +29,7 @@ function serviceCta(name: string, primaryGoal: string, explicit?: string) {
 function buildHeroHeadline(o: OnboardingPayload, name: string) {
   const city = o.basics.city?.trim();
   const industry = o.basics.industry?.trim();
-  const combined = `${o.branding.websiteStyle} ${o.branding.colorsPreferred}`.toLowerCase();
+  const combined = brandingCombinedForColors(o.branding).toLowerCase();
   const premium =
     combined.includes("premium") ||
     combined.includes("luxury") ||
@@ -62,7 +67,10 @@ function inferColors(style: string, preferred: string) {
 export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): WebsiteBlueprint {
   const name = o.basics.businessName.trim() || "Your business";
   const loc = [o.basics.city?.trim(), o.basics.country?.trim()].filter(Boolean).join(", ");
-  const { primary, secondary } = inferColors(o.branding.websiteStyle, o.branding.colorsPreferred);
+  const { primary, secondary } = inferColors(
+    brandingStyleText(o.branding),
+    o.branding.colorsPreferred,
+  );
 
   const extra = o.extraFeatures ?? [];
   const booking = isBookingGoal(o.mainGoal.primary);
@@ -296,7 +304,7 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
   const whyBody = [
     o.targetAudience.careAbout?.trim(),
     o.targetAudience.problems ? `We solve: ${o.targetAudience.problems}` : "",
-    o.branding.mood ? `Experience: ${o.branding.mood}` : "",
+    brandingMoodText(o.branding) ? `Experience: ${brandingMoodText(o.branding)}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -411,14 +419,17 @@ export function buildWebsiteBlueprintFromOnboarding(o: OnboardingPayload): Websi
       industry: o.basics.industry,
       location: loc,
       language: o.basics.language || "en",
-      tone: o.branding.mood || "professional",
+      tone: brandingMoodText(o.branding) || "professional",
     },
     brand: {
       primaryColor: primary,
       secondaryColor: secondary,
-      backgroundStyle: o.branding.websiteStyle,
+      backgroundStyle: brandingStyleText(o.branding),
       fontStyle: o.branding.fontStyle,
-      designStyle: [o.branding.websiteStyle, o.branding.notes].filter(Boolean).join(" · ").slice(0, 200),
+      designStyle: [brandingStyleText(o.branding), o.branding.notes]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 200),
     },
     seo: {
       title:
