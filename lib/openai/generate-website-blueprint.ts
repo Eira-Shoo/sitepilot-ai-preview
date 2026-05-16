@@ -25,42 +25,156 @@ import { openAiKeySuffix, resolveOpenAiApiKey } from "@/lib/openai/resolve-api-k
 
 export type BlueprintGenerationSource = "openai" | "mock";
 
+export const OPENAI_GENERATION_FAILED_MESSAGE =
+  "Could not generate website draft with OpenAI.";
+
+export type SafeErrorInfo = {
+  name: string;
+  message: string;
+  code?: string;
+  status?: number;
+  type?: string;
+  stack?: string;
+};
+
+function safeString(value: unknown, maxLen = 500): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.slice(0, maxLen);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function readMessage(error: unknown): string {
+  if (typeof error === "string") return error.slice(0, 500);
+  if (typeof error !== "object" || error === null) return "";
+  const msg = (error as { message?: unknown }).message;
+  return typeof msg === "string" ? msg.slice(0, 500) : "";
+}
+
+/** Extract primitive error fields only — never walks cause chains or circular objects. */
+export function toSafeErrorInfo(error: unknown): SafeErrorInfo {
+  const fallback: SafeErrorInfo = {
+    name: "Error",
+    message: "OpenAI generation failed",
+  };
+
+  try {
+    if (OpenAiGenerationError.isInstance(error)) {
+      const info: SafeErrorInfo = {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        status: error.statusCode,
+      };
+      if (process.env.NODE_ENV === "development" && error.stack) {
+        info.stack = error.stack.slice(0, 2000);
+      }
+      return info;
+    }
+
+    if (typeof error === "string") {
+      return { name: "Error", message: error.slice(0, 500) };
+    }
+
+    if (typeof error !== "object" || error === null) {
+      return fallback;
+    }
+
+    const e = error as Record<string, unknown>;
+    const info: SafeErrorInfo = {
+      name: safeString(e.name) || "Error",
+      message: readMessage(error) || fallback.message,
+    };
+
+    const code = safeString(e.code);
+    if (code) info.code = code;
+
+    const status =
+      typeof e.status === "number"
+        ? e.status
+        : typeof e.statusCode === "number"
+          ? e.statusCode
+          : undefined;
+    if (status !== undefined) info.status = status;
+
+    const type = safeString(e.type);
+    if (type) info.type = type;
+
+    if (process.env.NODE_ENV === "development" && typeof e.stack === "string") {
+      info.stack = e.stack.slice(0, 2000);
+    }
+
+    return info;
+  } catch {
+    return fallback;
+  }
+}
+
 export class OpenAiGenerationError extends Error {
   readonly statusCode: number;
   readonly code: string;
+  readonly details?: string;
 
   constructor(
     message: string,
-    cause?: unknown,
-    options?: { statusCode?: number; code?: string },
+    options?: { statusCode?: number; code?: string; details?: string },
   ) {
     super(message);
     this.name = "OpenAiGenerationError";
-    this.cause = cause;
     this.statusCode = options?.statusCode ?? 502;
     this.code = options?.code ?? "openai_generation_failed";
+    if (options?.details) {
+      this.details = options.details.slice(0, 500);
+    }
+  }
+
+  static isInstance(error: unknown): error is OpenAiGenerationError {
+    return (
+      error instanceof OpenAiGenerationError ||
+      (typeof error === "object" &&
+        error !== null &&
+        (error as { name?: string }).name === "OpenAiGenerationError")
+    );
   }
 }
 
-function isOpenAiAuthError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const e = error as { status?: number; code?: string };
-  return e.status === 401 || e.code === "invalid_api_key";
+function isOpenAiAuthError(info: SafeErrorInfo): boolean {
+  return info.status === 401 || info.code === "invalid_api_key";
 }
 
+/** Never throws; never re-wraps an existing OpenAiGenerationError with nested causes. */
 function normalizeOpenAiFailure(error: unknown): OpenAiGenerationError {
-  if (error instanceof OpenAiGenerationError) return error;
-  if (isOpenAiAuthError(error)) {
-    const suffix = openAiKeySuffix();
-    const hint = suffix ? ` (aktiver Schlüssel endet auf …${suffix})` : "";
-    return new OpenAiGenerationError(`${OPENAI_KEY_INVALID_MESSAGE}${hint}`, error, {
-      statusCode: 401,
-      code: "openai_invalid_api_key",
+  try {
+    if (OpenAiGenerationError.isInstance(error)) {
+      return error;
+    }
+
+    const safe = toSafeErrorInfo(error);
+
+    if (isOpenAiAuthError(safe)) {
+      const suffix = openAiKeySuffix();
+      const hint = suffix ? ` (aktiver Schlüssel endet auf …${suffix})` : "";
+      return new OpenAiGenerationError(`${OPENAI_KEY_INVALID_MESSAGE}${hint}`, {
+        statusCode: 401,
+        code: "openai_invalid_api_key",
+        details: safe.message,
+      });
+    }
+
+    return new OpenAiGenerationError(safe.message || OPENAI_GENERATION_FAILED_MESSAGE, {
+      statusCode: safe.status ?? 502,
+      code: safe.code ?? "openai_generation_failed",
+      details:
+        process.env.NODE_ENV === "development"
+          ? safe.message || undefined
+          : undefined,
+    });
+  } catch {
+    return new OpenAiGenerationError(OPENAI_GENERATION_FAILED_MESSAGE, {
+      statusCode: 502,
+      code: "openai_generation_failed",
     });
   }
-  const message =
-    error instanceof Error ? error.message : "OpenAI generation failed";
-  return new OpenAiGenerationError(message, error);
 }
 
 function logGenerationSource(source: BlueprintGenerationSource) {
@@ -72,7 +186,7 @@ function logGenerationSource(source: BlueprintGenerationSource) {
 function getClient() {
   const apiKey = resolveOpenAiApiKey();
   if (!apiKey) {
-    throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE, undefined, {
+    throw new OpenAiGenerationError(OPENAI_KEY_MISSING_MESSAGE, {
       statusCode: 503,
       code: "openai_key_missing",
     });
@@ -205,8 +319,12 @@ export async function createBlueprintFromOnboarding(
     logGenerationSource(source);
     return { blueprint, source };
   } catch (error) {
+    console.error(
+      "[generate-website] OpenAI generation failed",
+      toSafeErrorInfo(error),
+    );
     if (options.allowMockFallback) {
-      console.warn("[SitePilot] OpenAI generation failed; using mock blueprint", error);
+      console.warn("[SitePilot] OpenAI generation failed; using mock blueprint");
       const source: BlueprintGenerationSource = "mock";
       logGenerationSource(source);
       return {
