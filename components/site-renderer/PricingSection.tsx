@@ -3,7 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Check, Clock } from "lucide-react";
 import { SectionHeader } from "./SectionHeader";
-import { SECTION_CONTAINER, SECTION_PADDING } from "./section-styles";
+import {
+  CARD_BODY,
+  CARD_META,
+  CARD_PAD,
+  CARD_PRICE,
+  CARD_TITLE,
+  SECTION_CONTAINER,
+  SECTION_PADDING,
+  TAP_BUTTON,
+} from "./section-styles";
 
 type Pricing = Extract<BlueprintSection, { type: "pricing" }>;
 type PricingItem = {
@@ -33,7 +42,7 @@ export function PricingSection({ section }: { section: Pricing }) {
           title={section.headline || "Transparent pricing"}
           description="No hidden fees — choose the option that fits your needs."
         />
-        <div className={`mt-14 grid gap-8 ${gridClass}`}>
+        <div className={`mt-14 grid gap-8 sm:gap-10 ${gridClass}`}>
           {section.items.map((item: PricingItem, i: number) => {
             const isFeatured = i === featured;
             return (
@@ -41,33 +50,31 @@ export function PricingSection({ section }: { section: Pricing }) {
                 key={i}
                 className={`relative flex flex-col overflow-hidden rounded-3xl border-2 text-center transition ${
                   isFeatured
-                    ? "border-[var(--sp-secondary,#c9a227)] bg-gradient-to-b from-[var(--sp-secondary,#c9a227)]/10 via-card to-card shadow-xl ring-2 ring-[var(--sp-secondary,#c9a227)]/25 lg:scale-[1.03]"
-                    : "border-border/50 bg-card/80 shadow-sm hover:border-border"
+                    ? "z-10 border-[var(--sp-secondary,#c9a227)] bg-gradient-to-b from-[var(--sp-secondary,#c9a227)]/15 via-card to-card shadow-2xl ring-2 ring-[var(--sp-secondary,#c9a227)]/30 md:scale-[1.04]"
+                    : "border-border/50 bg-card/85 shadow-md hover:border-border"
                 }`}
               >
                 {isFeatured ? (
-                  <span className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--sp-secondary,#c9a227)] px-4 py-1 text-xs font-bold uppercase tracking-wide text-[var(--sp-primary,#0a0a0a)]">
+                  <span className="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--sp-secondary,#c9a227)] px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--sp-primary,#0a0a0a)] sm:text-sm">
                     Recommended
                   </span>
                 ) : null}
-                <CardHeader className="space-y-4 px-6 pb-2 pt-10">
-                  <CardTitle className="text-xl font-bold sm:text-2xl">{item.name}</CardTitle>
-                  <p className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-                    {item.price}
-                  </p>
+                <CardHeader className={`space-y-4 ${CARD_PAD} pb-2 ${isFeatured ? "pt-12" : "pt-10"}`}>
+                  <CardTitle className={`${CARD_TITLE} text-center`}>{item.name}</CardTitle>
+                  <p className={`${CARD_PRICE} text-center`}>{item.price}</p>
                   {item.duration ? (
-                    <p className="flex items-center justify-center gap-1.5 text-base text-muted-foreground">
-                      <Clock className="h-4 w-4" />
+                    <p className={`flex items-center justify-center gap-2 ${CARD_META}`}>
+                      <Clock className="h-5 w-5 shrink-0 text-[var(--sp-secondary,#c9a227)]" />
                       {item.duration}
                     </p>
                   ) : null}
                 </CardHeader>
-                <CardContent className="mt-auto space-y-5 px-6 pb-8">
+                <CardContent className={`mt-auto space-y-5 ${CARD_PAD} pt-0`}>
                   {item.description ? (
-                    <p className="text-base leading-relaxed text-muted-foreground">{item.description}</p>
+                    <p className={`${CARD_BODY} text-center`}>{item.description}</p>
                   ) : null}
                   {item.included ? (
-                    <p className="flex items-start justify-center gap-2 text-left text-sm leading-relaxed sm:text-center">
+                    <p className={`flex items-start justify-center gap-2 ${CARD_META} leading-relaxed`}>
                       <Check className="mt-0.5 h-5 w-5 shrink-0 text-[var(--sp-secondary,#c9a227)]" />
                       <span>{item.included}</span>
                     </p>
@@ -75,7 +82,7 @@ export function PricingSection({ section }: { section: Pricing }) {
                   <Button
                     asChild
                     size="lg"
-                    className={`h-12 w-full rounded-xl text-base font-semibold ${
+                    className={`${TAP_BUTTON} ${
                       isFeatured
                         ? "bg-[var(--sp-secondary,#c9a227)] text-[var(--sp-primary,#0a0a0a)] hover:opacity-90"
                         : ""

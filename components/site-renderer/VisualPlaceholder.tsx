@@ -39,7 +39,7 @@ export function VisualPlaceholder({
       </div>
 
       <div className="relative flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--sp-secondary,#c9a227)]/30 bg-background/30 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[var(--sp-secondary,#c9a227)] backdrop-blur sm:text-xs">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--sp-secondary,#c9a227)]/30 bg-background/30 px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-[var(--sp-secondary,#c9a227)] backdrop-blur">
           <Sparkles className="h-3 w-3" />
           AI image suggestion
         </span>
@@ -49,13 +49,13 @@ export function VisualPlaceholder({
       </div>
 
       <div className="relative mt-auto space-y-2 pt-8">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
         {shortPrompt ? (
-          <p className="text-sm leading-relaxed text-foreground/95 sm:text-base sm:leading-relaxed">
+          <p className="text-base leading-relaxed text-foreground/95 sm:leading-relaxed">
             {shortPrompt}
           </p>
         ) : (
-          <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+          <p className="text-base leading-relaxed text-muted-foreground">
             Premium photography placeholder — upload your own image or generate with AI.
           </p>
         )}

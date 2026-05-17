@@ -161,7 +161,7 @@ export function WebsiteRenderer({
         <div className="fixed bottom-4 left-4 right-4 z-50 md:hidden">
           <a
             href="#contact"
-            className="flex h-12 w-full items-center justify-center rounded-2xl bg-[var(--sp-secondary,#c9a227)] text-sm font-semibold text-[var(--sp-primary,#0a0a0a)] shadow-lg"
+            className="flex min-h-12 h-12 w-full items-center justify-center rounded-2xl bg-[var(--sp-secondary,#c9a227)] text-base font-semibold text-[var(--sp-primary,#0a0a0a)] shadow-lg"
           >
             {primaryCta}
           </a>
