@@ -1,9 +1,8 @@
 import OpenAI from "openai";
-import { parseWebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { buildEditBlueprintPrompt, buildRecommendationsPrompt } from "@/lib/ai/prompts";
+import { buildRecommendationsPrompt } from "@/lib/ai/prompts";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
-import { mockEditBlueprint } from "@/lib/blueprint/mock-edit-blueprint";
 import { createBlueprintFromOnboarding } from "@/lib/openai/generate-website-blueprint";
+import { editBlueprintFromInstruction } from "@/lib/openai/edit-blueprint";
 import { shouldUseMockAiGeneration } from "@/lib/runtime";
 import { resolveOpenAiApiKey } from "@/lib/openai/resolve-api-key";
 
@@ -23,35 +22,15 @@ export async function generateBlueprintFromOnboarding(
   return blueprint;
 }
 
+/** @deprecated Use editBlueprintFromInstruction for changeSummary and safeguards. */
 export async function editBlueprintWithInstruction(
   blueprint: WebsiteBlueprint,
   instruction: string,
 ): Promise<WebsiteBlueprint> {
-  if (shouldUseMockAiGeneration()) {
-    return mockEditBlueprint(blueprint, instruction);
-  }
-
-  const openai = getClient();
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.5,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You return JSON only — a complete SitePilot website blueprint object.",
-      },
-      {
-        role: "user",
-        content: `${buildEditBlueprintPrompt(instruction)}\n\nCurrent blueprint JSON:\n${JSON.stringify(blueprint)}`,
-      },
-    ],
+  const result = await editBlueprintFromInstruction(blueprint, instruction, {
+    allowMockFallback: shouldUseMockAiGeneration() || true,
   });
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error("Empty AI response");
-  const parsed = JSON.parse(raw);
-  return parseWebsiteBlueprint(parsed);
+  return result.blueprint;
 }
 
 export async function recommendImprovements(

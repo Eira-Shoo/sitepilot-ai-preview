@@ -1,5 +1,6 @@
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
+import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 
 /** @deprecated Legacy key — migrated to DEMO_DRAFT_STORAGE_KEY */
@@ -10,6 +11,7 @@ export type DemoDraftBundle = {
   blueprint: WebsiteBlueprint;
   source: BlueprintGenerationSource;
   savedAt: string;
+  onboarding?: OnboardingPayload;
 };
 
 function parseDraft(raw: string): DemoDraftBundle | null {
@@ -32,12 +34,18 @@ function parseDraft(raw: string): DemoDraftBundle | null {
   return null;
 }
 
-export function saveDemoDraft(blueprint: WebsiteBlueprint, source: BlueprintGenerationSource) {
+export function saveDemoDraft(
+  blueprint: WebsiteBlueprint,
+  source: BlueprintGenerationSource,
+  onboarding?: OnboardingPayload,
+) {
   if (typeof window === "undefined") return;
+  const existing = loadDemoDraft();
   const bundle: DemoDraftBundle = {
     blueprint,
     source,
     savedAt: new Date().toISOString(),
+    onboarding: onboarding ?? existing?.onboarding,
   };
   try {
     localStorage.setItem(DEMO_DRAFT_STORAGE_KEY, JSON.stringify(bundle));

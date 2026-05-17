@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ProjectWorkspace } from "@/components/dashboard/project-workspace";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
+import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
 import { demoBlueprint } from "@/lib/demo-blueprint";
 import { loadDemoDraft, saveDemoDraft } from "@/lib/demo-session";
@@ -22,6 +23,7 @@ export function DemoProjectShell({
 }: Props) {
   const [blueprint, setBlueprint] = useState<WebsiteBlueprint | null>(null);
   const [generationSource, setGenerationSource] = useState<BlueprintGenerationSource | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingPayload | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -29,6 +31,7 @@ export function DemoProjectShell({
     if (stored) {
       setBlueprint(stored.blueprint);
       setGenerationSource(stored.source);
+      setOnboarding(stored.onboarding ?? null);
     } else {
       setBlueprint(demoBlueprint);
       setGenerationSource("mock");
@@ -38,7 +41,7 @@ export function DemoProjectShell({
 
   function handleBlueprintUpdate(next: WebsiteBlueprint) {
     setBlueprint(next);
-    saveDemoDraft(next, generationSource ?? "mock");
+    saveDemoDraft(next, generationSource ?? "mock", onboarding ?? undefined);
   }
 
   if (!ready || !blueprint) {
@@ -60,6 +63,7 @@ export function DemoProjectShell({
         onBlueprintUpdate={handleBlueprintUpdate}
         isDemoPreview
         generationSource={generationSource}
+        onboarding={onboarding}
       />
     </div>
   );

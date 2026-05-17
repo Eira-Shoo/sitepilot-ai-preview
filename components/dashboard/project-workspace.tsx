@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WebsiteRenderer } from "@/components/site-renderer/WebsiteRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,17 +10,20 @@ import { toast } from "sonner";
 import type { WebsiteBlueprint } from "@/lib/validators/website-blueprint";
 import { websiteBlueprintSchema } from "@/lib/validators/website-blueprint";
 import type { BlueprintGenerationSource } from "@/lib/openai/generate-website-blueprint";
+import type { BlueprintEditSource } from "@/lib/openai/edit-blueprint";
+import type { OnboardingPayload } from "@/lib/validators/onboarding";
 import { GenerationSourceIndicator } from "@/components/dashboard/generation-source-indicator";
+import { saveDemoDraft } from "@/lib/demo-session";
+import { Undo2 } from "lucide-react";
 
 const QUICK_INSTRUCTIONS = [
-  "Make it more premium",
-  "Use my uploaded logo in the hero",
+  "More premium",
+  "Shorter hero",
   "Move pricing higher",
-  "Add a trust section",
-  "Make the CTA softer",
-  "Rewrite for local customers",
-  "Add FAQ questions",
-  "Add image prompts for every section",
+  "Add trust section",
+  "More local SEO",
+  "Change colors",
+  "Improve mobile CTA",
 ];
 
 type Rec = { recommendation_type: string; title: string; description: string; priority: string };
@@ -33,6 +36,7 @@ export function ProjectWorkspace({
   onBlueprintUpdate,
   isDemoPreview = false,
   generationSource,
+  onboarding,
 }: {
   projectId: string;
   initialBlueprint: WebsiteBlueprint | null;
@@ -41,6 +45,7 @@ export function ProjectWorkspace({
   onBlueprintUpdate?: (blueprint: WebsiteBlueprint) => void;
   isDemoPreview?: boolean;
   generationSource?: BlueprintGenerationSource | null;
+  onboarding?: OnboardingPayload | null;
 }) {
   const parsed = useMemo(() => {
     if (!initialBlueprint) return null;
@@ -49,17 +54,47 @@ export function ProjectWorkspace({
   }, [initialBlueprint]);
 
   const [blueprint, setBlueprint] = useState<WebsiteBlueprint | null>(parsed);
+  const [undoStack, setUndoStack] = useState<WebsiteBlueprint[]>([]);
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState(false);
   const [recommendations, setRecommendations] = useState<Rec[] | null>(null);
+  const [changeSummary, setChangeSummary] = useState<string[] | null>(null);
+  const [lastEditSource, setLastEditSource] = useState<BlueprintEditSource | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const onboardingRef = useRef(onboarding);
+
+  useEffect(() => {
+    onboardingRef.current = onboarding;
+  }, [onboarding]);
 
   useEffect(() => {
     if (parsed) setBlueprint(parsed);
   }, [parsed]);
 
-  function updateBlueprint(next: WebsiteBlueprint) {
+  function persistDemo(next: WebsiteBlueprint, source?: BlueprintGenerationSource | null) {
+    if (!isDemoPreview) return;
+    saveDemoDraft(next, source ?? generationSource ?? "mock", onboardingRef.current ?? undefined);
+  }
+
+  function updateBlueprint(next: WebsiteBlueprint, pushUndo = false) {
+    if (blueprint && pushUndo) {
+      setUndoStack((stack) => [...stack.slice(-9), blueprint]);
+    }
     setBlueprint(next);
     onBlueprintUpdate?.(next);
+    persistDemo(next);
+  }
+
+  function handleUndo() {
+    if (!undoStack.length || !blueprint) return;
+    const prev = undoStack[undoStack.length - 1]!;
+    setUndoStack((stack) => stack.slice(0, -1));
+    setBlueprint(prev);
+    onBlueprintUpdate?.(prev);
+    persistDemo(prev);
+    setChangeSummary(["Reverted to the previous blueprint version."]);
+    setEditError(null);
+    toast.success("Undid last AI edit");
   }
 
   async function runCheckout(packageType: "starter" | "business" | "growth") {
@@ -90,22 +125,59 @@ export function ProjectWorkspace({
 
   async function sendChat() {
     if (!blueprint) return;
-    if (!instruction.trim()) return;
+    const text = instruction.trim();
+    if (!text) return;
+
     setBusy(true);
+    setEditError(null);
+    setChangeSummary(null);
+
     try {
       const res = await fetch("/api/ai/edit-blueprint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, blueprint, instruction }),
+        body: JSON.stringify({
+          projectId,
+          blueprint,
+          instruction: text,
+          onboarding: onboardingRef.current ?? undefined,
+        }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed");
-      updateBlueprint(json.blueprint as WebsiteBlueprint);
+
+      const json = (await res.json()) as {
+        ok?: boolean;
+        blueprint?: WebsiteBlueprint;
+        changeSummary?: string[];
+        source?: BlueprintEditSource;
+        error?: string;
+      };
+
+      if (!res.ok || !json.ok || !json.blueprint) {
+        const msg = json.error ?? "AI edit failed";
+        setEditError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      const validated = websiteBlueprintSchema.safeParse(json.blueprint);
+      if (!validated.success) {
+        setEditError("Returned blueprint failed validation.");
+        toast.error("Invalid blueprint returned");
+        return;
+      }
+
+      updateBlueprint(validated.data, true);
+      setChangeSummary(json.changeSummary ?? ["Blueprint updated."]);
+      setLastEditSource(json.source ?? "mock");
       setInstruction("");
-      toast.success("Blueprint updated");
+      toast.success(
+        json.source === "openai" ? "Blueprint updated (OpenAI)" : "Blueprint updated (demo rules)",
+      );
     } catch (e) {
+      const msg = e instanceof Error ? e.message : "AI edit failed";
+      setEditError(msg);
       console.error(e);
-      toast.error("AI edit failed");
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -142,6 +214,7 @@ export function ProjectWorkspace({
   }
 
   const jsonPretty = JSON.stringify(blueprint, null, 2);
+  const canUndo = undoStack.length > 0;
 
   return (
     <Tabs defaultValue="preview" className="space-y-6">
@@ -196,7 +269,14 @@ export function ProjectWorkspace({
               </>
             )}
           </div>
-          <GenerationSourceIndicator source={generationSource} />
+          <div className="flex flex-wrap items-center gap-2">
+            {lastEditSource ? (
+              <span className="rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground">
+                Last edit: {lastEditSource === "openai" ? "OpenAI" : "Demo rules"}
+              </span>
+            ) : null}
+            <GenerationSourceIndicator source={generationSource} />
+          </div>
         </div>
         <div className="overflow-hidden rounded-3xl border border-border/60 bg-background shadow-xl">
           <WebsiteRenderer blueprint={blueprint} projectId={projectId} showContactForm />
@@ -218,10 +298,11 @@ export function ProjectWorkspace({
 
       <TabsContent value="chat" className="space-y-3">
         <Card className="rounded-2xl border-border/60 bg-card/80">
-          <CardContent className="space-y-3 p-6">
-            <p className="text-sm text-muted-foreground">
-              Plain-language edits return an updated JSON blueprint (never raw executable code). In demo mode, edits
-              use lightweight mock rules unless you configure OpenAI.
+          <CardContent className="space-y-4 p-6">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Describe changes in plain language. The editor updates your JSON blueprint only — never
+              executable code. Services and pricing stay exact unless you explicitly ask to change them.
+              Testimonials are never invented.
             </p>
             <div className="flex flex-wrap gap-2">
               {QUICK_INSTRUCTIONS.map((q) => (
@@ -230,7 +311,7 @@ export function ProjectWorkspace({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="h-auto rounded-full px-3 py-1 text-xs"
+                  className="h-auto rounded-full px-3 py-1.5 text-xs sm:text-sm"
                   disabled={busy}
                   onClick={() => setInstruction(q)}
                 >
@@ -242,11 +323,45 @@ export function ProjectWorkspace({
               rows={4}
               value={instruction}
               onChange={(e) => setInstruction(e.target.value)}
-              placeholder='Example: "Make the hero more luxury" or "Add a pricing section"'
+              placeholder='Tell AI what to change… e.g. "Make it more luxury and move pricing higher"'
+              className="text-base"
             />
-            <Button className="rounded-xl" disabled={busy} onClick={sendChat}>
-              {busy ? "Updating…" : "Apply AI changes"}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button className="min-h-12 rounded-xl text-base" disabled={busy} onClick={sendChat}>
+                {busy ? "Applying changes…" : "Apply changes"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-12 rounded-xl"
+                disabled={busy || !canUndo}
+                onClick={handleUndo}
+              >
+                <Undo2 className="mr-2 h-4 w-4" />
+                Undo last change
+              </Button>
+            </div>
+
+            {busy ? (
+              <p className="text-sm text-muted-foreground">Updating blueprint…</p>
+            ) : null}
+
+            {editError ? (
+              <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {editError}
+              </div>
+            ) : null}
+
+            {changeSummary?.length ? (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
+                <p className="font-semibold text-foreground">What changed</p>
+                <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
+                  {changeSummary.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </TabsContent>
@@ -317,7 +432,7 @@ export function ProjectWorkspace({
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Run the generator to see canned demo suggestions, or connect OpenAI for richer output.
+            Run the generator to see suggestions, or connect OpenAI for richer output.
           </p>
         )}
       </TabsContent>

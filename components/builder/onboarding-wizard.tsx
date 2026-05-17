@@ -255,7 +255,7 @@ export function OnboardingWizard() {
       }
       setLastGenerationSource(source);
       setLastGenerationError(null);
-      if (json.blueprint && json.projectId) saveDemoDraft(json.blueprint, source);
+      if (json.blueprint && json.projectId) saveDemoDraft(json.blueprint, source, payload);
       localStorage.removeItem(STORAGE_KEY);
       toast.success(
         source === "openai" ? "AI draft ready (OpenAI)" : "Draft ready (demo builder)",

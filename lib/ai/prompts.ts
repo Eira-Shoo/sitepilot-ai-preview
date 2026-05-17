@@ -158,13 +158,24 @@ Schema reminders:
 export function buildEditBlueprintPrompt(instruction: string): string {
   return `You edit a website blueprint JSON for SitePilot AI.
 Return JSON ONLY with the full updated blueprint object (complete object, not a patch).
+
 Rules:
 - Preserve valid structure; same schema as generation.
-- Apply the user's instruction faithfully.
-- Never output code. JSON only.
-- Do not add fake reviews.
+- Apply the user's instruction faithfully to brand colors, section order, copy, CTAs, SEO, trust, FAQ, and styling-related fields.
+- Never output code, CSS, or markdown. JSON only.
+- Do NOT invent fake testimonials or customer reviews. If testimonials section has no real quotes, use items: [] or omit the section.
+- Do NOT change services or pricing items (names, prices, durations) unless the user explicitly asks to change services or pricing.
+- trust.items and contact.formFields MUST be string arrays.
+- Service/pricing fields MUST be plain strings.
 
-User instruction:\n${instruction}`;
+Visual / design instructions (luxury, premium, gold, minimal, colors, mobile CTA):
+- Update brand.primaryColor, brand.secondaryColor, brand.designStyle, business.tone as needed.
+- Reorder pages[0].sections when asked (e.g. move pricing above services).
+- Adjust hero headline/subheadline length and conversionPlan CTAs.
+- Add or strengthen trust section items with neutral, non-fabricated statements only.
+
+User instruction:
+${instruction}`;
 }
 
 export function buildRecommendationsPrompt(payload: {
